@@ -11,8 +11,11 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
+import org.firstinspires.ftc.teamcode.RobotPozitie;
 import org.firstinspires.ftc.teamcode.sistemeAuto;
+import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 
 @Autonomous
 public class FirstAuto extends OpMode {
@@ -30,9 +33,9 @@ public class FirstAuto extends OpMode {
     private Path scorePreload;
     private PathChain luat1, tras1;
 
-    private boolean isShootingInProgress = false;
-    private int currentBallShot = 0;
-    private int shootingSubState = 0;
+    private boolean tragereInrogres = false;
+    private int s_aTras = 0;
+    private int stareaShooter = 0;
 
     public void buildPaths() {
         scorePreload = new Path(new BezierLine(startPose, tragere1));
@@ -49,28 +52,28 @@ public class FirstAuto extends OpMode {
                 .build();
     }
 
-    private void shootingStateMachine() {
-        switch (shootingSubState) {
+    private void TragereLaPupitru() {
+        switch (stareaShooter) {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
                 n.shooter.setVelocity(1500);
                 actionTimer.resetTimer();
-                shootingSubState = 1;
+                stareaShooter = 1;
                 break;
 
             case 1:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
-                    currentBallShot = 0;
-                    shootingSubState = 2;
+                    s_aTras = 0;
+                    stareaShooter = 2;
                 }
                 break;
 
             case 2:
                 if (n.loculete > 0) {
-                    shootingSubState = 3;
+                    stareaShooter = 3;
                 } else {
-                    shootingSubState = 10;
+                    stareaShooter = 10;
                 }
                 break;
 
@@ -93,89 +96,101 @@ public class FirstAuto extends OpMode {
                 }
 
                 actionTimer.resetTimer();
-                shootingSubState = 4;
+                stareaShooter = 4;
                 break;
 
             case 4:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.95) {
-                    shootingSubState = 5;
+                    stareaShooter = 5;
                 }
                 break;
 
             case 5:
                 n.Saruncare.setPosition(Pozitii.lansare);
                 actionTimer.resetTimer();
-                shootingSubState = 6;
+                stareaShooter = 6;
                 break;
 
             case 6:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
-                    shootingSubState = 7;
+                    stareaShooter = 7;
                 }
                 break;
 
             case 7: 
                 n.Saruncare.setPosition(Pozitii.coborare);
                 actionTimer.resetTimer();
-                shootingSubState = 8;
+                stareaShooter = 8;
                 break;
 
             case 8:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
                     n.loculete--;
-                    currentBallShot++;
-                    shootingSubState = 2;
+                    s_aTras++;
+                    stareaShooter = 2;
                 }
                 break;
 
             case 10:
                 n.sortare.setPosition(Pozitii.luarea1);
                 actionTimer.resetTimer();
-                shootingSubState = 11;
+                stareaShooter = 11;
                 break;
 
             case 11:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
                     n.shooter.setVelocity(0);
-                    shootingSubState = 12;
+                    stareaShooter = 12;
                 }
                 break;
 
             case 12:
-                isShootingInProgress = false;
-                shootingSubState = 0;
+                tragereInrogres = false;
+                stareaShooter = 0;
                 break;
         }
     }
 
-    private int collectionSubState = 0;
-    private boolean isCollecting = false;
+    private volatile boolean intakePornit = false;
+    private volatile boolean stopThread = false;
+    private Thread IntakeThread;
 
-    private void collectionStateMachine() {
-        switch (collectionSubState) {
-            case 0:
-                n.sortare.setPosition(Pozitii.luarea1);
-                actionTimer.resetTimer();
-                collectionSubState = 1;
-                break;
+    private void Intake() {
+        IntakeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (!stopThread) {
+                    if (intakePornit && n.loculete < 3) {
+                        n.intake.setPower(1);
 
-            case 1:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    n.intake.setPower(1.0);
-                    actionTimer.resetTimer();
-                    collectionSubState = 2;
+                        double imata = n.distanta.getDistance(DistanceUnit.CM);
+
+                        if (imata < 20) {
+                            if (n.loculete == 0) {
+                                n.kdf(250);
+                                n.loculete = 1;
+                                n.sortare.setPosition(Pozitii.luarea2);
+                            } else if (n.loculete == 1) {
+                                n.kdf(250);
+                                n.loculete = 2;
+                                n.sortare.setPosition(Pozitii.luarea3);
+                            } else if (n.loculete == 2) {
+                                n.kdf(250);
+                                n.loculete = 3;
+                            }
+                        }
+                    } else if (!intakePornit) {
+                        n.intake.setPower(0);
+                    }
+
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
-                break;
-
-            case 2:
-                if (actionTimer.getElapsedTimeSeconds() >= 3.0) {
-                    n.intake.setPower(0);
-                    n.loculete = 3;
-                    isCollecting = false;
-                    collectionSubState = 0;
-                }
-                break;
-        }
+            }
+        });
     }
 
     public void autonomousPathUpdate() {
@@ -194,15 +209,15 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 2:
-                if (!isShootingInProgress) {
-                    isShootingInProgress = true;
-                    shootingSubState = 0;
+                if (!tragereInrogres) {
+                    tragereInrogres = true;
+                    stareaShooter = 0;
                 }
 
-                shootingStateMachine();
+                TragereLaPupitru();
 
 
-                if (!isShootingInProgress) {
+                if (!tragereInrogres) {
                     actionTimer.resetTimer();
                     setPathState(25);
                 }
@@ -215,31 +230,33 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 3:
+                // Start intake thread early while moving
+                n.loculete = 0;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
                 follower.followPath(luat1);
                 setPathState(4);
                 break;
 
             case 4:
+                // Thread runs in background while robot moves
                 if (!follower.isBusy()) {
                     follower.holdPoint(aluat1);
+                    actionTimer.resetTimer();
                     setPathState(5);
                 }
                 break;
 
             case 5:
-                if (!isCollecting) {
-                    isCollecting = true;
-                    collectionSubState = 0;
-                }
-
-                collectionStateMachine();
-
-                if (!isCollecting) {
+                // Wait until 3 balls collected or 5 second timeout
+                if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
+                    intakePornit = false;
                     setPathState(6);
                 }
                 break;
 
             case 6:
+                intakePornit = false;
                 follower.followPath(tras1);
                 setPathState(7);
                 break;
@@ -252,14 +269,14 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 8:
-                if (!isShootingInProgress) {
-                    isShootingInProgress = true;
-                    shootingSubState = 0;
+                if (!tragereInrogres) {
+                    tragereInrogres = true;
+                    stareaShooter = 0;
                 }
 
-                shootingStateMachine();
+                TragereLaPupitru();
 
-                if (!isShootingInProgress) {
+                if (!tragereInrogres) {
                     setPathState(9);
                 }
                 break;
@@ -310,16 +327,24 @@ public class FirstAuto extends OpMode {
     public void start() {
         opmodeTimer.resetTimer();
         setPathState(0);
-        isShootingInProgress = false;
-
-
+        tragereInrogres = false;
+        stopThread = false;
+        intakePornit = false;
+        Intake();
+        IntakeThread.start();
     }
 
     @Override
     public void stop() {
+        stopThread = true;
+
+        // Save robot position for TeleOp
+        Pose currentPose = follower.getPose();
+        RobotPozitie.X = currentPose.getX();
+        RobotPozitie.Y = currentPose.getY();
+        RobotPozitie.heading = currentPose.getHeading();
+
         n.shooter.setVelocity(0);
         n.intake.setPower(0);
-
-
     }
 }

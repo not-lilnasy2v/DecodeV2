@@ -18,15 +18,16 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 
 public class sistemeAuto {
     public DcMotorEx turela, shooter, intake;
-    public ServoImplEx Saruncare, sortare,unghiD,unghiS;
+    public ServoImplEx Saruncare, sortare, unghiD, unghiS;
     public ColorSensor color;
     public DistanceSensor distanta;
     public final double TkP = 0.008, TkI = 0.0, TkD = 0.08, SkP = 10.23, SkI = 0.0, SkF = 14.95, SkD = 10.58;
-    public int loculete=3;
+    public int loculete = 3;
     public Limelight3A limelight3A;
     public boolean IntakeFull = false;
     public int idTag = 0;
-    public double tx = 0, power =0 , integral=0,lastError=0;
+    public double tx = 0, power = 0, integral = 0, lastError = 0;
+
     public void initsisteme(HardwareMap hard) {
 
         shooter = hard.get(DcMotorEx.class, "shooter");
@@ -48,7 +49,6 @@ public class sistemeAuto {
         unghiS = hard.get(ServoImplEx.class, "unghiS");
 
 
-
         distanta = hard.get(DistanceSensor.class, "distanta");
 
         color = hard.get(ColorSensor.class, "color");
@@ -59,34 +59,36 @@ public class sistemeAuto {
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
         limelight3A = hard.get(Limelight3A.class, "limelight");
         limelight3A.start();
-    }
-
-public synchronized  void tracking(){
-
-        double pos = turela.getCurrentPosition();
-    LLResult result = limelight3A.getLatestResult();
-    if (result.isValid() && pos >= Pozitii.TURRET_MIN_POS && pos <= Pozitii.TURRET_MAX_POS) {
-
-        tx = result.getTx();
-
-        integral += tx;
-        double derivative = tx - lastError;
-
-        power = TkP * tx + TkI * integral + TkD * derivative;
-        turela.setPower(power);
-
-        lastError = tx;
-    }
-
-        turela.setPower(0);
-        lastError = 0;
-        integral = 0;
+//    }
+//
+//public synchronized  void tracking(){
+//
+//        double pos = turela.getCurrentPosition();
+//    LLResult result = limelight3A.getLatestResult();
+//    if (result.isValid() && pos >= Pozitii.TURRET_MIN_POS && pos <= Pozitii.TURRET_MAX_POS) {
+//
+//        tx = result.getTx();
+//
+//        integral += tx;
+//        double derivative = tx - lastError;
+//
+//        power = TkP * tx + TkI * integral + TkD * derivative;
+//        turela.setPower(power);
+//
+//        lastError = tx;
+//    }
+//
+//        turela.setPower(0);
+//        lastError = 0;
+//        integral = 0;
+//    }
     }
 
     public void kdf(long t) {
         long lastTime = System.currentTimeMillis();
-        while (lastTime + t > System.currentTimeMillis()){
+        while (lastTime + t > System.currentTimeMillis()) {
 
         }
     }
 }
+

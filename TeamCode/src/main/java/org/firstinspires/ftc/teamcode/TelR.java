@@ -2,15 +2,19 @@ package org.firstinspires.ftc.teamcode;
 
 import static java.lang.Math.abs;
 
+import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp(name = "Main Rosu")
 public class TelR extends OpMode {
     private DcMotorEx frontRight, frontLeft, backRight, backLeft;
@@ -19,10 +23,18 @@ public class TelR extends OpMode {
     double sm = 1;
     double max = 0;
     double FL, BL, BR, FR;
+    private Follower follower;
+
     sistemeTeleOp m = new sistemeTeleOp();
+    private static double TargetX = 144;
+    private static double TargetY = 144;
+    private static double TICKS_PER_DEGREE = 1.5;
+    private static double MAX_TURRET_ANGLE = 90;
+    private static double MIN_TURRET_ANGLE = -90;
+    private static double TURRET_POWER = 1;
 
     //PIDF
-    private final double TkP = 0.004, TkI = 0.0, TkD = 0.007;
+    private static double TkP = 0.00, TkI = 0.0, TkD = 0.007;
     public boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false;
     private double integral = 0, lastError = 0, imata, tx = 0, power = 0, posU;
     int loculete = 0, idTag = 0, positiiTurela;
@@ -55,6 +67,13 @@ public class TelR extends OpMode {
         limelight3A = hardwareMap.get(Limelight3A.class, "limelight");
         limelight3A.pipelineSwitch(2);
         limelight3A.start();
+
+        follower = Constants.createFollower(hardwareMap);
+
+        // Use position from autonomous
+        Pose startingPose = new Pose(RobotPozitie.X, RobotPozitie.Y, RobotPozitie.heading);
+        follower.setStartingPose(startingPose);
+        follower.update();
     }
 
     public void start() {
@@ -130,71 +149,118 @@ public class TelR extends OpMode {
         public void run() {
             while (!stop) {
                 positiiTurela = m.turela.getCurrentPosition();
+                    if (tracking) {
+                        follower.update();
+                        Pose currentPose = follower.getPose();
+                        double robotX = currentPose.getX();
+                        double robotY = currentPose.getY();
+                        double robotHeading = currentPose.getHeading();
 
-                if (tracking) {
-                    LLResult result = limelight3A.getLatestResult();
+                        double dx = TargetX - robotX;
+                        double dy = TargetY - robotY;
+                        double angleToTarget = Math.atan2(dy, dx);
 
-                    if (result != null && result.isValid()) {
-                        tx = result.getTx();
+                        double turretAngleRad = angleToTarget - robotHeading;
+                        turretAngleRad = normalizeAngle(turretAngleRad);
+                        double turretAngleDeg = Math.toDegrees(turretAngleRad);
 
-                        double error = tx;
-                        integral += error;
-                        double derivative = error - lastError;
+                        turretAngleDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretAngleDeg));
 
-                        power = TkP * error + TkI * integral + TkD * derivative;
-
-                        int targetPos = positiiTurela + (int) (power * 50);
-
-                        if (targetPos > Pozitii.TURRET_MAX_POS) {
-                            targetPos = Pozitii.TURRET_MAX_POS;
-                            integral = 0;
-                        }
-                        if (targetPos < Pozitii.TURRET_MIN_POS) {
-                            targetPos = Pozitii.TURRET_MIN_POS;
-                            integral = 0;
-                        }
-
-                        if (positiiTurela >= Pozitii.TURRET_MIN_POS && positiiTurela <= Pozitii.TURRET_MAX_POS) {
-                            m.turela.setPower(power);
-                        } else {
-                            if ((positiiTurela <= Pozitii.TURRET_MIN_POS && power > 0) ||
-                                    (positiiTurela >= Pozitii.TURRET_MAX_POS && power < 0)) {
-                                m.turela.setPower(power);
-                            } else {
-                                m.turela.setPower(0);
-                            }
-                        }
-                        lastError = error;
-
-
+                        int targetTicks = (int)(turretAngleDeg * TICKS_PER_DEGREE);
+                        m.turela.setTargetPosition(-targetTicks);
+                        m.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                        m.turela.setPower(TURRET_POWER * TkP);
                     } else {
-                        m.turela.setPower(0);
+                        m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                        if (gamepad1.left_bumper) {
+                            m.turela.setPower(-0.3);
+                        } else if (gamepad1.right_bumper) {
+                            m.turela.setPower(0.3);
+                        } else {
+                            m.turela.setPower(0);
+                        }
                     }
 
-                    //securitate
-                    if (positiiTurela > Pozitii.TURRET_MAX_POS) {
-                        positiiTurela = Pozitii.TURRET_MAX_POS;
+                    try {
+                        Thread.sleep(20);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                     }
-                    if (positiiTurela < Pozitii.TURRET_MIN_POS) {
-                        positiiTurela = Pozitii.TURRET_MIN_POS;
-                    }
-
-
-                    lastError = 0;
-                    integral = 0;
-                }
-                else {
-                    m.turela.setPower(0);
-                }
-
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
-        }
-    });
+        });
+
+    private double normalizeAngle(double angle) {
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
+    }
+
+//    }
+//                    if (tracking) {
+//                        LLResult result = limelight3A.getLatestResult();
+//
+//                        if (result != null && result.isValid()) {
+//                            tx = result.getTx();
+//
+//                            double error = tx;
+//                            integral += error;
+//                            double derivative = error - lastError;
+//
+//                            power = TkP * error + TkI * integral + TkD * derivative;
+//
+//                            int targetPos = positiiTurela + (int) (power * 50);
+//
+//                            if (targetPos > Pozitii.TURRET_MAX_POS) {
+//                                targetPos = Pozitii.TURRET_MAX_POS;
+//                                integral = 0;
+//                            }
+//                            if (targetPos < Pozitii.TURRET_MIN_POS) {
+//                                targetPos = Pozitii.TURRET_MIN_POS;
+//                                integral = 0;
+//                            }
+//
+//                            if (positiiTurela >= Pozitii.TURRET_MIN_POS && positiiTurela <= Pozitii.TURRET_MAX_POS) {
+//                                m.turela.setPower(power);
+//                            } else {
+//                                if ((positiiTurela <= Pozitii.TURRET_MIN_POS && power > 0) ||
+//                                        (positiiTurela >= Pozitii.TURRET_MAX_POS && power < 0)) {
+//                                    m.turela.setPower(power);
+//                                } else {
+//                                    m.turela.setPower(0);
+//                                }
+//                            }
+//                            lastError = error;
+//
+//
+//                        } else {
+//                            m.turela.setPower(0);
+//                        }
+//
+//                        //securitate
+//                        if (positiiTurela > Pozitii.TURRET_MAX_POS) {
+//                            positiiTurela = Pozitii.TURRET_MAX_POS;
+//                        }
+//                        if (positiiTurela < Pozitii.TURRET_MIN_POS) {
+//                            positiiTurela = Pozitii.TURRET_MIN_POS;
+//                        }
+//
+//
+//                        lastError = 0;
+//                        integral = 0;
+//                    } else {
+//                        m.turela.setPower(0);
+//                    }
+//                }
+//
+//                try {
+//                    Thread.sleep(20);
+//                } catch (InterruptedException e) {
+//                    Thread.currentThread().interrupt();
+//                }
+//            }
+//        }
+//    });
 
     private final Thread Sortare = new Thread(new Runnable() {
         @Override
@@ -257,7 +323,7 @@ public class TelR extends OpMode {
             while (!stop) {
 
                 synchronized (blocat) {
-                    if (gamepad1.x && loculete > 0 && !sugere) {
+                    if (gamepad1.y && loculete > 0 && !sugere) {
                         trageShooting = true;
                         m.shooter.setVelocity(1800);
 

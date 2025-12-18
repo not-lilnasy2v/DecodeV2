@@ -3,15 +3,15 @@ package org.firstinspires.ftc.teamcode;
 public class Pozitii {
 
     /// Sortarea
-    public static final double luarea1 = 0.269;
-    public static final double luarea2 = 0.6425;
+    public static final double luarea1 = 0.2472;
+    public static final double luarea2 = 0.6267;
     public static final double luarea3 = 1;
-    public static final double aruncare1 = 0.8297;
-    public static final double aruncare2 = 0.0743;
-    public static final double aruncare3 = 0.4331;
+    public static final double aruncare1 = 0.8112;
+    public static final double aruncare2 = 0.0666;
+    public static final double aruncare3 = 0.4377;
     /// Lansare
-    public static final double lansare = 0.236;
-    public static final double coborare = 0.584;
+    public static final double lansare = 0.3666;
+    public static final double coborare = 0.6057;
     /// Positii turela?
     public static final int TURRET_MIN_POS = -178; //dreapta
     public static final int TURRET_MAX_POS = 126;

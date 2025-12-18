@@ -29,6 +29,7 @@ public class sistemeTeleOp {
 
         turela = hard.get(DcMotorEx.class, "turela");
         turela.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+        turela.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER );
         turela.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
 
