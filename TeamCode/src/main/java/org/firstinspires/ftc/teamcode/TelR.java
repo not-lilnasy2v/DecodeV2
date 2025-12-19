@@ -70,7 +70,6 @@ public class TelR extends OpMode {
 
         follower = Constants.createFollower(hardwareMap);
 
-        // Use position from autonomous
         Pose startingPose = new Pose(RobotPozitie.X, RobotPozitie.Y, RobotPozitie.heading);
         follower.setStartingPose(startingPose);
         follower.update();
@@ -173,9 +172,9 @@ public class TelR extends OpMode {
                     } else {
                         m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                         if (gamepad1.left_bumper) {
-                            m.turela.setPower(-0.3);
+                            m.turela.setPower(-0.2);
                         } else if (gamepad1.right_bumper) {
-                            m.turela.setPower(0.3);
+                            m.turela.setPower(0.2);
                         } else {
                             m.turela.setPower(0);
                         }

@@ -177,9 +177,9 @@ public class Tel extends OpMode {
                 } else {
                     m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                     if (gamepad1.left_bumper) {
-                        m.turela.setPower(-0.5);
+                        m.turela.setPower(-0.2);
                     } else if (gamepad1.right_bumper) {
-                        m.turela.setPower(0.5);
+                        m.turela.setPower(0.2);
                     } else {
                         m.turela.setPower(0);
                     }

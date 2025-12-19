@@ -27,21 +27,27 @@ public class RosuAuto extends OpMode {
 
     private static final double TARGET_X = 144;
     private static final double TARGET_Y = 144;
-    private static final double TICKS_PER_DEGREE = 1.35;
+    private static final double TICKS_PER_DEGREE = 1;
     private static final double MAX_TURRET_ANGLE = 90;
     private static final double MIN_TURRET_ANGLE = -90;
     private static final double TURRET_POWER = 1;
 
 
     private final Pose startPose = new Pose(124.53146853146853, 126.37762237762237, Math.toRadians(42));
-    private final Pose tragere1 = new Pose(76.86713286713287, 76.6993006993007, Math.toRadians(42));
+    private final Pose tragere1 = new Pose(90.86713286713287, 91.6993006993007, Math.toRadians(42));
     private final Pose aduna1 = new Pose(84.58741258741259, 71.83216783216783);
-    private final Pose aluat1 = new Pose(130.81818181818183, 89.61538461538461, Math.toRadians(0));
-    private final Pose tras2 = new Pose(76.53146853146853, 76.36363636363636, Math.toRadians(42));
+    private final Pose aluat1 = new Pose(122.81818181818183, 89.61538461538461, Math.toRadians(0));
+    private final Pose tras1 = new Pose(90.86713286713287, 80.36363636363636, Math.toRadians(42));
+    private final Pose aduna2 = new Pose(82.4055944055944, 61.090909090909086);
+    private final Pose aluat2 = new Pose(120.14685314685315,60.95104895104895, Math.toRadians(0));
+    private final Pose tras2 = new Pose(90.86713286713287, 85.19580419580419, Math.toRadians(42));
+    private final Pose aduna3 = new Pose(83.24475524475524, 37.930069930069926);
+    private final Pose aluat3 = new Pose(116.47552447552448, 39.94405594405595 , Math.toRadians(0));
+    private final Pose tras3 = new Pose(90.86713286713287,86.36363636363636,Math.toRadians(42));
 
 
     private Path scorePreload;
-    private PathChain luat1, tras1;
+    private PathChain luat1, trasUnu,luat2, trasDoi,luat3,trasTrei;
 
     private boolean TragereInProgres = false;
     private int BilaTrasa = 0;
@@ -56,9 +62,25 @@ public class RosuAuto extends OpMode {
                 .setLinearHeadingInterpolation(tragere1.getHeading(), aluat1.getHeading())
                 .build();
 
-        tras1 = follower.pathBuilder()
-                .addPath(new BezierLine(aluat1, tras2))
-                .setLinearHeadingInterpolation(aluat1.getHeading(), tras2.getHeading())
+        trasUnu = follower.pathBuilder()
+                .addPath(new BezierLine(aluat1, tras1))
+                .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
+                .build();
+        luat2 = follower.pathBuilder()
+                .addPath(new BezierLine(aduna2,aluat2))
+                .setLinearHeadingInterpolation(tras1.getHeading(),aluat2.getHeading())
+                .build();
+        trasDoi = follower.pathBuilder()
+                .addPath(new BezierLine(aluat2,tras2))
+                .setLinearHeadingInterpolation(aluat2.getHeading(),tras2.getHeading())
+                .build();
+        luat3 = follower.pathBuilder()
+                .addPath(new BezierLine(aduna3, aluat3))
+                .setLinearHeadingInterpolation(tras2.getHeading(), aluat3.getHeading())
+                .build();
+        trasTrei = follower.pathBuilder()
+                .addPath(new BezierLine(aluat3, tras3))
+                .setLinearHeadingInterpolation(aluat3.getHeading(), tras3.getHeading())
                 .build();
     }
 
@@ -67,7 +89,7 @@ public class RosuAuto extends OpMode {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(1800);
+                n.shooter.setVelocity(1600);
                 n.unghiS.setPosition(pop.posUnghi);
                 n.unghiD.setPosition(pop.posUnghi);
                 trackTargetWithOdometry();
@@ -188,11 +210,11 @@ public class RosuAuto extends OpMode {
                                 n.loculete = 1;
                                 n.sortare.setPosition(Pozitii.luarea2);
                             } else if (n.loculete == 1) {
-                                n.kdf(150);
+                                n.kdf(250);
                                 n.loculete = 2;
                                 n.sortare.setPosition(Pozitii.luarea3);
                             } else if (n.loculete == 2) {
-                                n.kdf(150);
+                                n.kdf(350);
                                 n.loculete = 3;
                             }
                         }
@@ -251,7 +273,6 @@ public class RosuAuto extends OpMode {
                 n.loculete = 0;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
-                follower.setMaxPower(0.45);
                 follower.followPath(luat1);
                 setPathState(4);
                 break;
@@ -265,7 +286,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 5:
-                // Wait until 3 balls collected or 5 second timeout
                 if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
                     intakePornit = false;
                     setPathState(6);
@@ -274,14 +294,13 @@ public class RosuAuto extends OpMode {
 
             case 6:
                 intakePornit = false;
-                follower.setMaxPower(1.0);
-                follower.followPath(tras1);
+                follower.followPath(trasUnu);
                 setPathState(7);
                 break;
 
             case 7:
                 if (!follower.isBusy()) {
-                    follower.holdPoint(tras2);
+                    follower.holdPoint(tras1);
                     setPathState(8);
                 }
                 break;
@@ -302,6 +321,108 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 9:
+                n.loculete = 0;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(luat2);
+                setPathState(10);
+                break;
+
+            case 10:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat2);
+                    actionTimer.resetTimer();
+                    setPathState(11);
+                }
+                break;
+
+            case 11:
+                if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
+                    intakePornit = false;
+                    setPathState(12);
+                }
+                break;
+
+            case 12:
+                intakePornit = false;
+                follower.followPath(trasDoi);
+                setPathState(13);
+                break;
+
+            case 13:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras2);
+                    setPathState(14);
+                }
+                break;
+
+            case 14:
+                trackTargetWithOdometry();
+
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(15);
+                }
+                break;
+
+            case 15:
+                n.loculete = 0;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(luat3);
+                setPathState(16);
+                break;
+
+            case 16:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(17);
+                }
+                break;
+
+            case 17:
+                if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
+                    intakePornit = false;
+                    setPathState(18);
+                }
+                break;
+
+            case 18:
+                intakePornit = false;
+                follower.followPath(trasTrei);
+                setPathState(19);
+                break;
+
+            case 19:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras3);
+                    setPathState(20);
+                }
+                break;
+
+            case 20:
+                trackTargetWithOdometry();
+
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(21);
+                }
+                break;
+
+            case 21:
                 setPathState(-1);
                 break;
 
@@ -390,7 +511,6 @@ public class RosuAuto extends OpMode {
     public void stop() {
         stop = true;
 
-        // Save robot position for TeleOp
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();

@@ -8,14 +8,15 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
 import org.firstinspires.ftc.teamcode.RobotPozitie;
+import org.firstinspires.ftc.teamcode.pop;
 import org.firstinspires.ftc.teamcode.sistemeAuto;
-import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 
 @Autonomous
 public class FirstAuto extends OpMode {
@@ -24,14 +25,30 @@ public class FirstAuto extends OpMode {
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
 
+    private static final double TARGET_X = 0;
+    private static final double TARGET_Y = 144;
+    private static final double TICKS_PER_DEGREE = 1;
+    private static final double MAX_TURRET_ANGLE = 90;
+    private static final double MIN_TURRET_ANGLE = -90;
+    private static final double TURRET_POWER = 1;
+
     private final Pose startPose = new Pose(24.503496503496507, 128.8951048951049, Math.toRadians(142));
-    private final Pose tragere1 = new Pose(55.552447552447546, 94.15384615384616, Math.toRadians(140));
+    private final Pose tragere1 = new Pose(55.552447552447546, 96.15384615384616, Math.toRadians(140));
     private final Pose aduna1 = new Pose(68.3076923076923, 86.93706293706293);
-    private final Pose aluat1 = new Pose(31.55244755244755, 89.95804195804195, Math.toRadians(180));
-    private final Pose tras2 = new Pose(55.552447552447546, 94.15384615384616, Math.toRadians(140));
+    private final Pose aluat1 = new Pose(27.55244755244755, 89.95804195804195, Math.toRadians(180));
+    private final Pose tras1 = new Pose(55.552447552447546, 94.15384615384616, Math.toRadians(140));
+    private final Pose aduna2 = new Pose(72.67132867132867, 65.95804195804196);
+    private final Pose aluat2 = new Pose(22.034965034965033, 63.77622377622377, Math.toRadians(180));
+    private final Pose tras2 = new Pose(66.12587412587412, 90.62937062937063, Math.toRadians(140));
+
+    private final Pose aduna3 = new Pose(65.95804195804196, 43.8041958041958);
+    private final Pose aluat3 = new Pose(23.363636363636363, 40.78321678321679, Math.toRadians(180));
+    private final Pose tras3 = new Pose(66.12587412587412, 85.55944055944055, Math.toRadians(140));
+
+
 
     private Path scorePreload;
-    private PathChain luat1, tras1;
+    private PathChain luat1, trasUnu,luat2,trasDoi,luat3,trasTrei;
 
     private boolean tragereInrogres = false;
     private int s_aTras = 0;
@@ -42,14 +59,31 @@ public class FirstAuto extends OpMode {
         scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), tragere1.getHeading());
 
         luat1 = follower.pathBuilder()
-                .addPath(new BezierLine(tragere1, aluat1))
+                .addPath(new BezierLine(aduna1, aluat1))
                 .setLinearHeadingInterpolation(tragere1.getHeading(), aluat1.getHeading())
                 .build();
 
-        tras1 = follower.pathBuilder()
-                .addPath(new BezierLine(aluat1, tras2))
-                .setLinearHeadingInterpolation(aluat1.getHeading(), tras2.getHeading())
+        trasUnu = follower.pathBuilder()
+                .addPath(new BezierLine(aluat1, tras1))
+                .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
                 .build();
+        luat2 = follower.pathBuilder()
+                .addPath(new BezierLine(aduna2, aluat2))
+                .setLinearHeadingInterpolation(tras1.getHeading(),aluat2.getHeading())
+                .build();
+        trasDoi = follower.pathBuilder()
+                .addPath(new BezierLine(aluat2,tras2))
+                .setLinearHeadingInterpolation(aluat2.getHeading(),tras2.getHeading())
+                .build();
+        luat3 = follower.pathBuilder()
+                .addPath(new BezierLine(aduna3,aluat3))
+                .setLinearHeadingInterpolation(tras2.getHeading(), aluat3.getHeading())
+                .build();
+        trasTrei = follower.pathBuilder()
+                .addPath(new BezierLine(aluat3,tras3))
+                .setLinearHeadingInterpolation(aluat3.getHeading(),tras3.getHeading())
+                .build();
+
     }
 
     private void TragereLaPupitru() {
@@ -58,6 +92,9 @@ public class FirstAuto extends OpMode {
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
                 n.shooter.setVelocity(1500);
+                n.unghiS.setPosition(pop.posUnghi);
+                n.unghiD.setPosition(pop.posUnghi);
+                trackTargetWithOdometry();
                 actionTimer.resetTimer();
                 stareaShooter = 1;
                 break;
@@ -70,6 +107,9 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 2:
+                if (n.loculete > 3) n.loculete = 3;
+                if (n.loculete < 0) n.loculete = 0;
+
                 if (n.loculete > 0) {
                     stareaShooter = 3;
                 } else {
@@ -145,6 +185,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 12:
+                n.loculete = 0;
                 tragereInrogres = false;
                 stareaShooter = 0;
                 break;
@@ -167,7 +208,7 @@ public class FirstAuto extends OpMode {
 
                         if (imata < 20) {
                             if (n.loculete == 0) {
-                                n.kdf(250);
+                                n.kdf(150);
                                 n.loculete = 1;
                                 n.sortare.setPosition(Pozitii.luarea2);
                             } else if (n.loculete == 1) {
@@ -175,7 +216,7 @@ public class FirstAuto extends OpMode {
                                 n.loculete = 2;
                                 n.sortare.setPosition(Pozitii.luarea3);
                             } else if (n.loculete == 2) {
-                                n.kdf(250);
+                                n.kdf(350);
                                 n.loculete = 3;
                             }
                         }
@@ -191,6 +232,38 @@ public class FirstAuto extends OpMode {
                 }
             }
         });
+    }
+
+    private double normalizeAngle(double angle) {
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
+    }
+
+    private void setTurretPosition(double angleDegrees) {
+        int targetTicks = (int) (angleDegrees * TICKS_PER_DEGREE);
+        n.turela.setTargetPosition(-targetTicks);
+        n.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        n.turela.setPower(TURRET_POWER);
+    }
+
+    private void trackTargetWithOdometry() {
+        Pose currentPose = follower.getPose();
+        double robotX = currentPose.getX();
+        double robotY = currentPose.getY();
+        double robotHeading = currentPose.getHeading();
+
+        double dx = TARGET_X - robotX;
+        double dy = TARGET_Y - robotY;
+        double angleToTarget = Math.atan2(dy, dx);
+
+        double turretAngleRad = angleToTarget - robotHeading;
+        turretAngleRad = normalizeAngle(turretAngleRad);
+
+        double turretAngleDeg = Math.toDegrees(turretAngleRad);
+        turretAngleDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretAngleDeg));
+
+        setTurretPosition(turretAngleDeg);
     }
 
     public void autonomousPathUpdate() {
@@ -209,13 +282,14 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 2:
+                trackTargetWithOdometry();
+
                 if (!tragereInrogres) {
                     tragereInrogres = true;
                     stareaShooter = 0;
                 }
 
                 TragereLaPupitru();
-
 
                 if (!tragereInrogres) {
                     actionTimer.resetTimer();
@@ -230,7 +304,6 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 3:
-                // Start intake thread early while moving
                 n.loculete = 0;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
@@ -239,7 +312,6 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 4:
-                // Thread runs in background while robot moves
                 if (!follower.isBusy()) {
                     follower.holdPoint(aluat1);
                     actionTimer.resetTimer();
@@ -248,7 +320,6 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 5:
-                // Wait until 3 balls collected or 5 second timeout
                 if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
                     intakePornit = false;
                     setPathState(6);
@@ -257,18 +328,20 @@ public class FirstAuto extends OpMode {
 
             case 6:
                 intakePornit = false;
-                follower.followPath(tras1);
+                follower.followPath(trasUnu);
                 setPathState(7);
                 break;
 
             case 7:
                 if (!follower.isBusy()) {
-                    follower.holdPoint(tras2);
+                    follower.holdPoint(tras1);
                     setPathState(8);
                 }
                 break;
 
             case 8:
+                trackTargetWithOdometry();
+
                 if (!tragereInrogres) {
                     tragereInrogres = true;
                     stareaShooter = 0;
@@ -282,6 +355,108 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 9:
+                n.loculete = 0;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(luat2);
+                setPathState(10);
+                break;
+
+            case 10:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat2);
+                    actionTimer.resetTimer();
+                    setPathState(11);
+                }
+                break;
+
+            case 11:
+                if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
+                    intakePornit = false;
+                    setPathState(12);
+                }
+                break;
+
+            case 12:
+                intakePornit = false;
+                follower.followPath(trasDoi);
+                setPathState(13);
+                break;
+
+            case 13:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras2);
+                    setPathState(14);
+                }
+                break;
+
+            case 14:
+                trackTargetWithOdometry();
+
+                if (!tragereInrogres) {
+                    tragereInrogres = true;
+                    stareaShooter = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!tragereInrogres) {
+                    setPathState(15);
+                }
+                break;
+
+            case 15:
+                n.loculete = 0;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(luat3);
+                setPathState(16);
+                break;
+
+            case 16:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(17);
+                }
+                break;
+
+            case 17:
+                if (n.loculete >= 3 || actionTimer.getElapsedTimeSeconds() >= 5.0) {
+                    intakePornit = false;
+                    setPathState(18);
+                }
+                break;
+
+            case 18:
+                intakePornit = false;
+                follower.followPath(trasTrei);
+                setPathState(19);
+                break;
+
+            case 19:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras3);
+                    setPathState(20);
+                }
+                break;
+
+            case 20:
+                trackTargetWithOdometry();
+
+                if (!tragereInrogres) {
+                    tragereInrogres = true;
+                    stareaShooter = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!tragereInrogres) {
+                    setPathState(21);
+                }
+                break;
+
+            case 21:
                 setPathState(-1);
                 break;
 
@@ -338,7 +513,6 @@ public class FirstAuto extends OpMode {
     public void stop() {
         stopThread = true;
 
-        // Save robot position for TeleOp
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();

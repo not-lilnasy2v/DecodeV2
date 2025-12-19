@@ -23,7 +23,6 @@ public class AproapeAlbastru extends OpMode {
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
 
-    // Turret tracking - Blue target
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 144;
     private static final double TICKS_PER_DEGREE = 1.35;
@@ -31,24 +30,21 @@ public class AproapeAlbastru extends OpMode {
     private static final double MIN_TURRET_ANGLE = -90;
     private static final double TURRET_POWER = 1;
 
-    // Positions
     private final Pose startPose = new Pose(56, 8, Math.toRadians(90));
     private final Pose shootingPose = new Pose(72.25135703457383, 75.10137415032521, Math.toRadians(142));
     private final Pose parkPose = new Pose(104.94048608733925, 34.030417135312256, Math.toRadians(90));
 
-    // Paths
-    private Path toShooting, toPark;
+    private Path laShooting, laParc;
 
-    // Shooting state
     private boolean TragereInProgres = false;
     private int ShootingStare = 0;
 
     public void buildPaths() {
-        toShooting = new Path(new BezierLine(startPose, shootingPose));
-        toShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(142));
+        laShooting = new Path(new BezierLine(startPose, shootingPose));
+        laShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(142));
 
-        toPark = new Path(new BezierLine(shootingPose, parkPose));
-        toPark.setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(90));
+        laParc = new Path(new BezierLine(shootingPose, parkPose));
+        laParc.setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(90));
     }
 
     private void TragereLaPupitru() {
@@ -189,8 +185,7 @@ public class AproapeAlbastru extends OpMode {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                // Go to shooting position
-                follower.followPath(toShooting);
+                follower.followPath(laShooting);
                 setPathState(1);
                 break;
 
@@ -202,7 +197,6 @@ public class AproapeAlbastru extends OpMode {
                 break;
 
             case 2:
-                // Track target and shoot all preloaded balls
                 trackTargetWithOdometry();
 
                 if (!TragereInProgres) {
@@ -219,15 +213,13 @@ public class AproapeAlbastru extends OpMode {
                 break;
 
             case 3:
-                // Wait a moment before parking
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
                     setPathState(4);
                 }
                 break;
 
             case 4:
-                // Go to parking zone
-                follower.followPath(toPark);
+                follower.followPath(laParc);
                 setPathState(5);
                 break;
 
@@ -239,7 +231,6 @@ public class AproapeAlbastru extends OpMode {
                 break;
 
             case 6:
-                // Done - stay parked
                 setPathState(-1);
                 break;
 
@@ -286,13 +277,12 @@ public class AproapeAlbastru extends OpMode {
         opmodeTimer.resetTimer();
         setPathState(0);
         TragereInProgres = false;
-        n.loculete = 3;  // Preloaded with 3 balls
+        n.loculete = 3;
         n.sortare.setPosition(Pozitii.luarea1);
     }
 
     @Override
     public void stop() {
-        // Save robot position for TeleOp
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();

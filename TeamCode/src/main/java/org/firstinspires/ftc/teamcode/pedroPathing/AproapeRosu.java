@@ -23,7 +23,6 @@ public class AproapeRosu extends OpMode {
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
 
-    // Turret tracking
     private static final double TARGET_X = 144;
     private static final double TARGET_Y = 144;
     private static final double TICKS_PER_DEGREE = 1.35;
@@ -31,24 +30,21 @@ public class AproapeRosu extends OpMode {
     private static final double MIN_TURRET_ANGLE = -90;
     private static final double TURRET_POWER = 1;
 
-    // Positions
     private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
     private final Pose shootingPose = new Pose(71.41317423834907, 76.61010318352976, Math.toRadians(50));
     private final Pose parkPose = new Pose(37.88586238935889, 33.69514401682233, Math.toRadians(90));
 
-    // Paths
-    private Path toShooting, toPark;
+    private Path laShooting, laParc;
 
-    // Shooting state
     private boolean TragereInProgres = false;
     private int ShootingStare = 0;
 
     public void buildPaths() {
-        toShooting = new Path(new BezierLine(startPose, shootingPose));
-        toShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(50));
+        laShooting = new Path(new BezierLine(startPose, shootingPose));
+        laShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(50));
 
-        toPark = new Path(new BezierLine(shootingPose, parkPose));
-        toPark.setLinearHeadingInterpolation(Math.toRadians(50), Math.toRadians(90));
+        laParc = new Path(new BezierLine(shootingPose, parkPose));
+        laParc.setLinearHeadingInterpolation(Math.toRadians(50), Math.toRadians(90));
     }
 
     private void TragereLaPupitru() {
@@ -189,8 +185,7 @@ public class AproapeRosu extends OpMode {
     public void autonomousPathUpdate() {
         switch (pathState) {
             case 0:
-                // Go to shooting position
-                follower.followPath(toShooting);
+                follower.followPath(laShooting);
                 setPathState(1);
                 break;
 
@@ -202,7 +197,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 2:
-                // Track target and shoot all preloaded balls
                 trackTargetWithOdometry();
 
                 if (!TragereInProgres) {
@@ -219,15 +213,13 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 3:
-                // Wait a moment before parking
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
                     setPathState(4);
                 }
                 break;
 
             case 4:
-                // Go to parking zone
-                follower.followPath(toPark);
+                follower.followPath(laParc);
                 setPathState(5);
                 break;
 
@@ -239,7 +231,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 6:
-                // Done - stay parked
                 setPathState(-1);
                 break;
 

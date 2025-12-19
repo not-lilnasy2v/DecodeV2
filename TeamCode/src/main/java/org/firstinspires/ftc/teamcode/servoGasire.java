@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 
 @TeleOp
+
 public class servoGasire extends LinearOpMode {
     double pos=0.5;
     private ServoImplEx aruncare, sortare, unghiD, unghiS;
