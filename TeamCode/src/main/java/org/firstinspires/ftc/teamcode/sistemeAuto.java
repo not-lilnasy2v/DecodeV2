@@ -59,29 +59,6 @@ public class sistemeAuto {
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
         limelight3A = hard.get(Limelight3A.class, "limelight");
         limelight3A.start();
-//    }
-//
-//public synchronized  void tracking(){
-//
-//        double pos = turela.getCurrentPosition();
-//    LLResult result = limelight3A.getLatestResult();
-//    if (result.isValid() && pos >= Pozitii.TURRET_MIN_POS && pos <= Pozitii.TURRET_MAX_POS) {
-//
-//        tx = result.getTx();
-//
-//        integral += tx;
-//        double derivative = tx - lastError;
-//
-//        power = TkP * tx + TkI * integral + TkD * derivative;
-//        turela.setPower(power);
-//
-//        lastError = tx;
-//    }
-//
-//        turela.setPower(0);
-//        lastError = 0;
-//        integral = 0;
-//    }
     }
 
     public void kdf(long t) {

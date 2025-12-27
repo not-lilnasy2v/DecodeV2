@@ -10,7 +10,6 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 
 @TeleOp
 @Disabled
-
 public class IncercareTurela extends LinearOpMode {
 
     private DcMotorEx shooter, turela, frontRight, frontLeft, backRight, backLeft;

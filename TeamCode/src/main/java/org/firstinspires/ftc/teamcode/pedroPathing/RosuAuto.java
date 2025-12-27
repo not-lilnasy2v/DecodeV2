@@ -27,23 +27,23 @@ public class RosuAuto extends OpMode {
 
     private static final double TARGET_X = 144;
     private static final double TARGET_Y = 144;
-    private static final double TICKS_PER_DEGREE = 1;
+    private static final double TICKS_PER_DEGREE = 1.5;
     private static final double MAX_TURRET_ANGLE = 90;
     private static final double MIN_TURRET_ANGLE = -90;
     private static final double TURRET_POWER = 1;
 
 
     private final Pose startPose = new Pose(124.53146853146853, 126.37762237762237, Math.toRadians(42));
-    private final Pose tragere1 = new Pose(90.86713286713287, 91.6993006993007, Math.toRadians(42));
+    private final Pose tragere1 = new Pose(98.86713286713287, 91.6993006993007, Math.toRadians(50));
     private final Pose aduna1 = new Pose(84.58741258741259, 71.83216783216783);
-    private final Pose aluat1 = new Pose(122.81818181818183, 89.61538461538461, Math.toRadians(0));
-    private final Pose tras1 = new Pose(90.86713286713287, 80.36363636363636, Math.toRadians(42));
+    private final Pose aluat1 = new Pose(124.81818181818183, 89.61538461538461, Math.toRadians(0));
+    private final Pose tras1 = new Pose(98.86713286713287, 91.36363636363636, Math.toRadians(50));
     private final Pose aduna2 = new Pose(82.4055944055944, 61.090909090909086);
-    private final Pose aluat2 = new Pose(120.14685314685315,60.95104895104895, Math.toRadians(0));
-    private final Pose tras2 = new Pose(90.86713286713287, 85.19580419580419, Math.toRadians(42));
+    private final Pose aluat2 = new Pose(130.14685314685315,60.95104895104895, Math.toRadians(0));
+    private final Pose tras2 = new Pose(98.86713286713287, 91.19580419580419, Math.toRadians(50));
     private final Pose aduna3 = new Pose(83.24475524475524, 37.930069930069926);
-    private final Pose aluat3 = new Pose(116.47552447552448, 39.94405594405595 , Math.toRadians(0));
-    private final Pose tras3 = new Pose(90.86713286713287,86.36363636363636,Math.toRadians(42));
+    private final Pose aluat3 = new Pose(124.47552447552448, 39.94405594405595 , Math.toRadians(0));
+    private final Pose tras3 = new Pose(90.86713286713287,86.36363636363636,Math.toRadians(50));
 
 
     private Path scorePreload;
@@ -89,7 +89,7 @@ public class RosuAuto extends OpMode {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(1600);
+                n.shooter.setVelocity(1550);
                 n.unghiS.setPosition(pop.posUnghi);
                 n.unghiD.setPosition(pop.posUnghi);
                 trackTargetWithOdometry();
@@ -177,7 +177,7 @@ public class RosuAuto extends OpMode {
 
             case 11:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    n.shooter.setVelocity(0);
+                    n.shooter.setVelocity(750);
                     ShootingStare = 12;
                 }
                 break;
@@ -210,11 +210,11 @@ public class RosuAuto extends OpMode {
                                 n.loculete = 1;
                                 n.sortare.setPosition(Pozitii.luarea2);
                             } else if (n.loculete == 1) {
-                                n.kdf(250);
+                                n.kdf(100);
                                 n.loculete = 2;
                                 n.sortare.setPosition(Pozitii.luarea3);
                             } else if (n.loculete == 2) {
-                                n.kdf(350);
+                                n.kdf(150);
                                 n.loculete = 3;
                             }
                         }

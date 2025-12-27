@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 @TeleOp
 
 public class servoGasire extends LinearOpMode {
-    double pos=0.5;
+    double pos = 0.5;
     private ServoImplEx aruncare, sortare, unghiD, unghiS;
     private DcMotorEx turela;
 //int pos = 0;
@@ -26,22 +26,21 @@ public class servoGasire extends LinearOpMode {
         turela.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
 
         turela.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        pos = turela.getCurrentPosition();
 
         waitForStart();
         while (opModeIsActive()) {
 
             if (gamepad1.a) {
-                pos += 0.0003;
+                pos += 0.0005;
             }
             if (gamepad1.b) {
-                pos -= 0.0003;
+                pos -= 0.0005;
             }
 
-            aruncare.setPosition(pos);
-//            sortare.setPosition(pos);
+//            aruncare.setPosition(pos);
+            sortare.setPosition(pos);
 //            unghiD.setPosition(pos);
-
+//
 //            unghiS.setPosition(pos);
 
 //            turela.setTargetPosition(pos);

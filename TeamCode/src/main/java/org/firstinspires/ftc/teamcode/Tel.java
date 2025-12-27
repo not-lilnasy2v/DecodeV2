@@ -12,9 +12,11 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+
 
 @TeleOp(name = "Main")
 public class Tel extends OpMode {
@@ -29,14 +31,32 @@ public class Tel extends OpMode {
 
     private static double TargetX = 0;
     private static double TargetY = 144;
-    private static double TICKS_PER_DEGREE = 1.5;
+    private static double TICKS_PER_DEGREE = 1.23;
     private static double MAX_TURRET_ANGLE = 90;
     private static double MIN_TURRET_ANGLE = -90;
-    private static double TURRET_POWER = 1;
+    private static double TkP=0.03, TkI  =0.0, TkD = 0.02;
+    private double tx=0,integral=0, lastError=0;
 
-    public boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false;
+    private static double TolerantaPositionest = 0.5;
+    private static double maiTare = 0.25;
+    private double x=RobotPozitie.X ,y=RobotPozitie.Y,h= RobotPozitie.heading;
+    private double lastRobotX = RobotPozitie.X, lastRobotY = RobotPozitie.Y, lastRobotH = RobotPozitie.heading;
+    private double velocityX = 0, velocityY = 0, velocityH = 0;
+    private ElapsedTime Timer = new ElapsedTime();
+
+    public boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,TrackingLimelight=false,trackingAjutor=false;
     private double imata, posU;
-    int loculete = 0, idTag = 2, positiiTurela;
+    int idTag = 2, positiiTurela;
+
+    private volatile boolean[] slotOcupat = new boolean[3];
+
+    private int getLoculete() {
+        int count = 0;
+        for (boolean occupied : slotOcupat) {
+            if (occupied) count++;
+        }
+        return count;
+    }
 
     private volatile boolean sugere = false;
     private volatile boolean trageShooting = false;
@@ -62,13 +82,13 @@ public class Tel extends OpMode {
         frontRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+
         limelight3A = hardwareMap.get(Limelight3A.class, "limelight");
         limelight3A.pipelineSwitch(0);
         limelight3A.start();
 
         follower = Constants.createFollower(hardwareMap);
-
-        Pose startingPose = new Pose(RobotPozitie.X, RobotPozitie.Y, RobotPozitie.heading);
+        Pose startingPose = new Pose(RobotPozitie.X,RobotPozitie.Y,RobotPozitie.heading);
         follower.setStartingPose(startingPose);
         follower.update();
     }
@@ -113,10 +133,18 @@ public class Tel extends OpMode {
                     }
                     IntakePornit = gamepad1_a;
                 }
+//                boolean gamepad2_b = gamepad2.b;
+//                if (TrackingLimelight != gamepad2_b) {
+//                    if (gamepad2.b) {
+//                        trackingAjutor = !trackingAjutor;
+//                    }
+//                    TrackingLimelight = gamepad2_b;
+//                }
+
 
                 if(gamepad2.dpad_up && idTag <1){
                     ///purple green purple
-                    idTag = 2;
+                    idTag = 1;
                 }
                 if(gamepad2.dpad_left && idTag <1){
                     /// green purple purple
@@ -137,12 +165,6 @@ public class Tel extends OpMode {
                     }
                     SortingToggle = gamepad2_a;
                 }
-
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
             }
         }
     });
@@ -150,30 +172,53 @@ public class Tel extends OpMode {
     private final Thread Turela = new Thread(new Runnable() {
         @Override
         public void run() {
+            Timer.reset();
+
             while (!stop) {
                 positiiTurela = m.turela.getCurrentPosition();
 
                 if (tracking) {
                     follower.update();
                     Pose currentPose = follower.getPose();
-                    double robotX = currentPose.getX();
-                    double robotY = currentPose.getY();
-                    double robotHeading = currentPose.getHeading();
 
-                    double dx = TargetX - robotX;
-                    double dy = TargetY - robotY;
-                    double angleToTarget = Math.atan2(dy, dx);
+                    double currentX = currentPose.getX();
+                    double currentY = currentPose.getY();
+                    double currentH = currentPose.getHeading();
 
-                    double turretAngleRad = angleToTarget - robotHeading;
-                    turretAngleRad = normalizeAngle(turretAngleRad);
-                    double turretAngleDeg = Math.toDegrees(turretAngleRad);
+                    double dt = Timer.seconds();
+                    Timer.reset();
+                    if (dt > 0 && dt < 0.1) {
+                        velocityX = (currentX - lastRobotX) / dt;
+                        velocityY = (currentY - lastRobotY) / dt;
+                        velocityH = normalizeAngle(currentH - lastRobotH) / dt;
+                    }
+                    lastRobotX = currentX;
+                    lastRobotY = currentY;
+                    lastRobotH = currentH;
 
-                    turretAngleDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretAngleDeg));
+                    double predictedX = currentX + velocityX * maiTare;
+                    double predictedY = currentY + velocityY * maiTare;
+                    double predictedH = currentH + velocityH * maiTare;
 
-                    int targetTicks = (int)(turretAngleDeg * TICKS_PER_DEGREE);
-                    m.turela.setTargetPosition(-targetTicks);
-                    m.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                    m.turela.setPower(TURRET_POWER);
+                    double dx = TargetX - predictedX;
+                    double dy = TargetY - predictedY;
+
+                    double unghiLaTarget = Math.atan2(dy, dx);
+                    double turretAngle = unghiLaTarget - predictedH;
+                    turretAngle = normalizeAngle(turretAngle);
+                    double turretDeg = Math.toDegrees(turretAngle);
+
+                    turretDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretDeg));
+
+                    double currentAngleDeg = -m.turela.getCurrentPosition() / TICKS_PER_DEGREE;
+                    double error = Math.abs(turretDeg - currentAngleDeg);
+
+                    if (error > TolerantaPositionest) {
+                        int targetTicks = (int) (-turretDeg * TICKS_PER_DEGREE);
+                        m.turela.setTargetPosition(targetTicks);
+                        m.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                        m.turela.setPower(1);
+                    }
                 } else {
                     m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                     if (gamepad1.left_bumper) {
@@ -184,12 +229,65 @@ public class Tel extends OpMode {
                         m.turela.setPower(0);
                     }
                 }
-
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+//                positiiTurela = m.turela.getCurrentPosition();
+//
+//                if (tracking && trackingAjutor) {
+//                    LLResult result = limelight3A.getLatestResult();
+//
+//                    if (result != null && result.isValid()) {
+//                        tx = result.getTx();
+//
+//                        double error = tx;
+//                        integral += error;
+//                        double derivative = error - lastError;
+//
+//                        double power = TkP * error + TkI * integral + TkD * derivative;
+//
+//                        int targetPos = positiiTurela + (int) (power * 50);
+//
+//                        if (targetPos > Pozitii.TURRET_MAX_POS) {
+//                            targetPos = Pozitii.TURRET_MAX_POS;
+//                            integral = 0;
+//                        }
+//                        if (targetPos < Pozitii.TURRET_MIN_POS) {
+//                            targetPos = Pozitii.TURRET_MIN_POS;
+//                            integral = 0;
+//                        }
+//
+//                        if (positiiTurela >= Pozitii.TURRET_MIN_POS && positiiTurela <= Pozitii.TURRET_MAX_POS) {
+//                            m.turela.setPower(power);
+//                        } else {
+//                            if ((positiiTurela <= Pozitii.TURRET_MIN_POS && power > 0) ||
+//                                    (positiiTurela >= Pozitii.TURRET_MAX_POS && power < 0)) {
+//                                m.turela.setPower(power);
+//                            } else {
+//                                m.turela.setPower(0);
+//                            }
+//                        }
+//                        lastError = error;
+//                    } else {
+//                        m.turela.setPower(0);
+//                    }
+//
+//                    if (positiiTurela > Pozitii.TURRET_MAX_POS) {
+//                        positiiTurela = Pozitii.TURRET_MAX_POS;
+//                    }
+//                    if (positiiTurela < Pozitii.TURRET_MIN_POS) {
+//                        positiiTurela = Pozitii.TURRET_MIN_POS;
+//                    }
+//
+//                    lastError = 0;
+//                    integral = 0;
+//                }
+//                else {
+//                    m.turela.setPower(0);
+//                }
+//
+//                try {
+//                    Thread.sleep(20);
+//                } catch (InterruptedException e) {
+//                    Thread.currentThread().interrupt();
+//                }
             }
         }
     });
@@ -199,113 +297,57 @@ public class Tel extends OpMode {
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
     }
+//    private final Thread Turela = new Thread(new Runnable() {
+//        @Override
+//        public void run() {
+//            while (!stop) {
 
-/*    private final Thread Turela_OLD = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            while (!stop) {
-                positiiTurela = m.turela.getCurrentPosition();
-
-                if (tracking) {
-                    LLResult result = limelight3A.getLatestResult();
-
-                    if (result != null && result.isValid()) {
-                        tx = result.getTx();
-
-                        double error = tx;
-                        integral += error;
-                        double derivative = error - lastError;
-
-                        power = TkP * error + TkI * integral + TkD * derivative;
-
-                        int targetPos = positiiTurela + (int) (power * 50);
-
-                        if (targetPos > Pozitii.TURRET_MAX_POS) {
-                            targetPos = Pozitii.TURRET_MAX_POS;
-                            integral = 0;
-                        }
-                        if (targetPos < Pozitii.TURRET_MIN_POS) {
-                            targetPos = Pozitii.TURRET_MIN_POS;
-                            integral = 0;
-                        }
-
-                        if (positiiTurela >= Pozitii.TURRET_MIN_POS && positiiTurela <= Pozitii.TURRET_MAX_POS) {
-                            m.turela.setPower(power);
-                        } else {
-                            if ((positiiTurela <= Pozitii.TURRET_MIN_POS && power > 0) ||
-                                    (positiiTurela >= Pozitii.TURRET_MAX_POS && power < 0)) {
-                                m.turela.setPower(power);
-                            } else {
-                                m.turela.setPower(0);
-                            }
-                        }
-                        lastError = error;
-                    } else {
-                        m.turela.setPower(0);
-                    }
-
-                    if (positiiTurela > Pozitii.TURRET_MAX_POS) {
-                        positiiTurela = Pozitii.TURRET_MAX_POS;
-                    }
-                    if (positiiTurela < Pozitii.TURRET_MIN_POS) {
-                        positiiTurela = Pozitii.TURRET_MIN_POS;
-                    }
-
-                    lastError = 0;
-                    integral = 0;
-                }
-                else {
-                    m.turela.setPower(0);
-                }
-
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-    });
-    */
 
     private final Thread Sortare = new Thread(new Runnable() {
         @Override
         public void run() {
             while (!stop) {
                 synchronized (blocat) {
-                    if (Ipornit && !trageShooting && loculete < 3) {
+                    int loculete = getLoculete();
+
+                    if (Ipornit && !trageShooting && loculete < 3 && !gamepad1.b) {
                         sugere = true;
                         m.intake.setPower(1);
 
                         imata = m.distanta.getDistance(DistanceUnit.CM);
 
                         if (imata < 20) {
-                            if (loculete == 0) {
-                                gamepad1.rumble(1000);
-                                m.sortare.setPosition(Pozitii.luarea2);
-                                loculete++;
-                                m.kdf(950);
-                            } else if (loculete == 1) {
-                                gamepad1.rumble(1000);
+                            double servoPos = m.sortare.getPosition();
 
-                                m.sortare.setPosition(Pozitii.luarea3);
-                                loculete++;
+                            if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
+                                slotOcupat[0] = true;
+                                if (!slotOcupat[1]) {
+                                    m.sortare.setPosition(Pozitii.luarea2);
+                                } else if (!slotOcupat[2]) {
+                                    m.sortare.setPosition(Pozitii.luarea3);
+                                }
                                 m.kdf(950);
-                            } else if (loculete == 2) {
-                                gamepad1.rumble(1000);
-                                loculete++;
+                            } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
+                                slotOcupat[1] = true;
+                                if (!slotOcupat[2]) {
+                                    m.sortare.setPosition(Pozitii.luarea3);
+                                } else if (!slotOcupat[0]) {
+                                    m.sortare.setPosition(Pozitii.luarea1);
+                                }
+                                m.kdf(950);
+                            } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
+                                slotOcupat[2] = true;
+                                m.kdf(950);
                             }
                         }
-                    } else {
+                    } else if(gamepad1.b){
+                        sugere = false;
+                        m.intake.setPower(-1);
+                    }
+                    else{
                         sugere = false;
                         m.intake.setPower(0);
                     }
-                }
-
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -321,7 +363,6 @@ public class Tel extends OpMode {
 
     private SortareShooter Sstare = SortareShooter.SIDLE;
     private int[] cPattern = new int[3];
-    private boolean[] ocupat = new boolean[3];
 
     private final Thread Shooter = new Thread(new Runnable() {
         @Override
@@ -329,6 +370,8 @@ public class Tel extends OpMode {
             while (!stop) {
 
                 synchronized (blocat) {
+                    int loculete = getLoculete();
+
                     if (gamepad1.y && loculete > 0 && !sugere) {
                         trageShooting = true;
                         m.shooter.setVelocity(1800);
@@ -336,26 +379,30 @@ public class Tel extends OpMode {
                         if (SortingPornit) {
                             switch (Sstare) {
                                 case SIDLE:
-                                    m.sortare.setPosition(Pozitii.aruncare1);
-                                    m.kdf(250);
-
-                                    for (int i = 0; i < 3; i++) {
-                                        ocupat[i] = (i < loculete);
+                                    if (slotOcupat[0]) {
+                                        m.sortare.setPosition(Pozitii.aruncare1);
+                                    } else if (slotOcupat[1]) {
+                                        m.sortare.setPosition(Pozitii.aruncare2);
+                                    } else if (slotOcupat[2]) {
+                                        m.sortare.setPosition(Pozitii.aruncare3);
                                     }
-
+                                    m.kdf(250);
                                     Sstare = SortareShooter.Incarca;
                                     break;
 
                                 case Incarca:
                                     if (idTag == 3) {
+                                        //  purple, purple, green
                                         cPattern[0] = 1;
                                         cPattern[1] = 1;
                                         cPattern[2] = 0;
                                     } else if (idTag == 2) {
+                                        //  purple, green, purple
                                         cPattern[0] = 1;
                                         cPattern[1] = 0;
                                         cPattern[2] = 1;
                                     } else if (idTag == 1) {
+                                        //  green, purple, purple
                                         cPattern[0] = 0;
                                         cPattern[1] = 1;
                                         cPattern[2] = 1;
@@ -379,7 +426,7 @@ public class Tel extends OpMode {
                                     break;
 
                                 case GATA:
-                                    m.shooter.setVelocity(0);
+                                    m.shooter.setVelocity(950);
                                     trageShooting = false;
                                     Sstare = SortareShooter.SIDLE;
                                     break;
@@ -389,37 +436,26 @@ public class Tel extends OpMode {
                         }
                     } else {
                         if (Sstare != SortareShooter.SIDLE) {
-                            m.shooter.setVelocity(0);
+                            m.shooter.setVelocity(950);
                             m.sortare.setPosition(Pozitii.luarea1);
                             trageShooting = false;
                             Sstare = SortareShooter.SIDLE;
                         }
                     }
                 }
-
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
             }
         }
 
         private void rapidFireShoot() {
-            if (loculete > 0 && Sstare == SortareShooter.SIDLE) {
+            if (getLoculete() > 0 && Sstare == SortareShooter.SIDLE) {
                 Sstare = SortareShooter.Incarca;
             }
 
-            while (loculete > 0) {
-                int shootPos = -1;
-                if (loculete >= 3) shootPos = 2;
-                else if (loculete >= 2) shootPos = 1;
-                else if (loculete >= 1) shootPos = 0;
-
-                if (shootPos >= 0) {
-                    if (shootPos == 0) m.sortare.setPosition(Pozitii.aruncare1);
-                    else if (shootPos == 1) m.sortare.setPosition(Pozitii.aruncare2);
-                    else if (shootPos == 2) m.sortare.setPosition(Pozitii.aruncare3);
+            for (int i = 2; i >= 0; i--) {
+                if (slotOcupat[i]) {
+                    if (i == 0) m.sortare.setPosition(Pozitii.aruncare1);
+                    else if (i == 1) m.sortare.setPosition(Pozitii.aruncare2);
+                    else m.sortare.setPosition(Pozitii.aruncare3);
 
                     m.kdf(1230);
 
@@ -428,75 +464,50 @@ public class Tel extends OpMode {
                     m.Saruncare.setPosition(Pozitii.coborare);
                     m.kdf(150);
 
-                    loculete--;
+                    slotOcupat[i] = false;
                 }
             }
 
             m.sortare.setPosition(Pozitii.luarea1);
             m.kdf(300);
-            m.shooter.setVelocity(0);
+            m.shooter.setVelocity(950);
             trageShooting = false;
             Sstare = SortareShooter.SIDLE;
         }
 
         private void BilaInPattern() {
-            for (int step = 0; step < 3 && loculete > 0; step++) {
+            for (int step = 0; step < 3 && getLoculete() > 0; step++) {
                 int need = cPattern[step];
                 boolean ballShot = false;
 
-                if (!ballShot && ocupat[0]) {
-                    m.sortare.setPosition(Pozitii.aruncare1);
-                    m.kdf(950);
+                for (int slot = 0; slot < 3 && !ballShot; slot++) {
+                    if (slotOcupat[slot]) {
+                        if (slot == 0) m.sortare.setPosition(Pozitii.aruncare1);
+                        else if (slot == 1) m.sortare.setPosition(Pozitii.aruncare2);
+                        else m.sortare.setPosition(Pozitii.aruncare3);
 
-                    boolean mov = m.color.green() <= Pozitii.mov_verde;
+                        m.kdf(950);
 
-                    if ((need == 1 && mov) || (need == 0 && !mov)) {
-                        TrageBila();
-                        ocupat[0] = false;
-                        loculete--;
-                        ballShot = true;
-                    }
-                }
+                        boolean mov = m.color.green() <= Pozitii.mov_verde;
 
-                if (!ballShot && ocupat[1]) {
-                    m.sortare.setPosition(Pozitii.aruncare2);
-                    m.kdf(950);
-
-                    boolean mov = m.color.green() <= Pozitii.mov_verde;
-
-                    if ((need == 1 && mov) || (need == 0 && !mov)) {
-                        TrageBila();
-                        ocupat[1] = false;
-                        loculete--;
-                        ballShot = true;
-                    }
-                }
-
-                if (!ballShot && ocupat[2]) {
-                    m.sortare.setPosition(Pozitii.aruncare3);
-                    m.kdf(950);
-
-                    boolean mov = m.color.green() <= Pozitii.mov_verde;
-
-                    if ((need == 1 && mov) || (need == 0 && !mov)) {
-                        TrageBila();
-                        ocupat[2] = false;
-                        loculete--;
-                        ballShot = true;
+                        if ((need == 1 && mov) || (need == 0 && !mov)) {
+                            TrageBila();
+                            slotOcupat[slot] = false;
+                            ballShot = true;
+                        }
                     }
                 }
 
                 if (!ballShot) {
-                    for (int i = 0; i < 3; i++) {
-                        if (ocupat[i]) {
-                            if (i == 0) m.sortare.setPosition(Pozitii.aruncare1);
-                            else if (i == 1) m.sortare.setPosition(Pozitii.aruncare2);
+                    for (int slot = 0; slot < 3; slot++) {
+                        if (slotOcupat[slot]) {
+                            if (slot == 0) m.sortare.setPosition(Pozitii.aruncare1);
+                            else if (slot == 1) m.sortare.setPosition(Pozitii.aruncare2);
                             else m.sortare.setPosition(Pozitii.aruncare3);
 
                             m.kdf(1300);
                             TrageBila();
-                            ocupat[i] = false;
-                            loculete--;
+                            slotOcupat[slot] = false;
                             break;
                         }
                     }
@@ -547,11 +558,13 @@ public class Tel extends OpMode {
 
                 POWER(FR / sm, BL / sm, BR / sm, FL / sm);
 
-                try {
+/*
+             try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
+                */
             }
         }
     });
@@ -561,9 +574,10 @@ public class Tel extends OpMode {
     }
 
     @Override
-    public void loop() {
-        telemetry.addData("pos", posU);
-        telemetry.addData("Pos", positiiTurela);
+    public void loop(){
+        telemetry.addData("X", lastRobotX);
+        telemetry.addData("Y", lastRobotY);
+        telemetry.addData("H", lastRobotH);
         telemetry.update();
     }
     public void POWER(double fr1, double bl1, double br1, double fl1) {

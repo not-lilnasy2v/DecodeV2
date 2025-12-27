@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.RobotPozitie;
 import org.firstinspires.ftc.teamcode.pop;
 import org.firstinspires.ftc.teamcode.sistemeAuto;
 
-@Autonomous(name = "Aproape Auto Albastru")
+@Autonomous(name = "Departe Albastru")
 public class AproapeAlbastru extends OpMode {
     sistemeAuto n = new sistemeAuto();
     private Follower follower;
