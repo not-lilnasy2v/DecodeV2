@@ -12,6 +12,8 @@ public class Pozitii {
     /// Lansare
     public static final double lansare = 0.3666;
     public static final double coborare = 0.6057;
+    /// Shooter
+    public static final double velocity = 1700;
     /// Positii turela?
     public static final int TURRET_MIN_POS = -178; //dreapta
     public static final int TURRET_MAX_POS = 126;
@@ -23,7 +25,7 @@ public class Pozitii {
 
     /// Servo Unghi
 
-    public static final double max_sus = 0.7955;
-    public static final double max_jos =0.44;
+    public static final double max_sus = 0.546;
+    public static final double max_jos =0.1525;
 
 }

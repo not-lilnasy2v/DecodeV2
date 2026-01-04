@@ -4,4 +4,5 @@ public class RobotPozitie {
     public static double X = 0;
     public static double Y = 0;
     public static double heading = 0;
+    public static int idTag = 0;
 }

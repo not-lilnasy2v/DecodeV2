@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import static java.lang.Math.abs;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -10,37 +11,36 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp(name = "Main Rosu")
+@Configurable
 public class TelR extends OpMode {
+    private PidControllerAdevarat positionPID;
     private DcMotorEx frontRight, frontLeft, backRight, backLeft;
-//    private Limelight3A limelight3A;
+    private Follower follower;
     boolean stop;
     double sm = 1;
     double max = 0;
     double FL, BL, BR, FR;
-    private Follower follower;
 
     sistemeTeleOp m = new sistemeTeleOp();
-    private static double TargetX = 144;
-    private static double TargetY = 144;
-    private static double TICKS_PER_DEGREE = 1.23;
-    private static double MAX_TURRET_UNGHI = 90;
-    private static double MIN_TURRET_UNGHI = -90;
 
-    private static double ToleratnaPositionest = 0.5;
-    private static double maiTare = 0.25;
+    private final double TargetX = 144;
+    private final double TargetY = 144;
+
+    private static double maiTare = 0.5;
 
     private double lastRobotX = RobotPozitie.X, lastRobotY = RobotPozitie.Y, lastRobotH = RobotPozitie.heading;
     private double velocityX = 0, velocityY = 0, velocityH = 0;
     private ElapsedTime Timer = new ElapsedTime();
 
     public boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,IpornitR =false ,IntakePornitR= false;
-    private double imata, posU;
-    int idTag = 0, positiiTurela;
+    private double ledistante, posU;
+    int idTag = RobotPozitie.idTag, positiiTurela;
 
     private volatile boolean[] slotOcupat = new boolean[3];
 
@@ -77,9 +77,16 @@ public class TelR extends OpMode {
         backLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
-//        limelight3A = hardwareMap.get(Limelight3A.class, "limelight");
-//        limelight3A.pipelineSwitch(2);
-//        limelight3A.start();
+        // Initialize position PID (outer loop)
+        positionPID = new PidControllerAdevarat(m.posP, m.posI, m.posD);
+        positionPID.setOutputRange(-m.maxTurretVelocity, m.maxTurretVelocity);
+        positionPID.setTolerance(m.TolerantaPositionest * m.TICKS_PER_DEGREE);
+        positionPID.enable();
+
+        // Configure turret motor for velocity control (inner loop on REV Hub)
+        m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        m.turela.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER,
+                new PIDFCoefficients(m.velP, m.velI, m.velD, m.velF));
 
         follower = Constants.createFollower(hardwareMap);
 
@@ -127,15 +134,6 @@ public class TelR extends OpMode {
                     }
                     IntakePornit = gamepad1_a;
                 }
-                if(gamepad2.dpad_up && idTag <1){
-                    idTag = 1;
-                }
-                if(gamepad2.dpad_left && idTag <1){
-                    idTag= 2;
-                }
-                if(gamepad2.dpad_down && idTag <1){
-                    idTag= 3;
-                }
 
                 boolean gamepad2_a = gamepad2.a;
                 if (SortingToggle != gamepad2_a) {
@@ -146,20 +144,14 @@ public class TelR extends OpMode {
                     SortingToggle = gamepad2_a;
                 }
 
-                boolean gamepad1_b = gamepad1.b;
-                if (IntakePornitR != gamepad1_b) {
-                    if (gamepad1.b) {
-                        IpornitR = !IpornitR;
-                    }
-                    IntakePornitR = gamepad1_b;
-                }
+//                boolean mamaMiklosCanceroasa = gamepad1.
 
-
+/*
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                }
+                }*/
             }
         }
     });
@@ -171,6 +163,17 @@ public class TelR extends OpMode {
 
             while (!stop) {
                 positiiTurela = m.turela.getCurrentPosition();
+
+                // Update PID coefficients from Panels (allows live tuning)
+                positionPID.setPID(m.posP, m.posI, m.posD);
+
+                // Update velocity PID on REV Hub if changed
+                try {
+                    m.turela.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER,
+                            new PIDFCoefficients(m.velP, m.velI, m.velD, m.velF));
+                } catch (Exception e) {
+                    // Ignore if motor not ready
+                }
 
                 if (tracking) {
                     follower.update();
@@ -203,26 +206,50 @@ public class TelR extends OpMode {
                     turretAngle = normalizeAngle(turretAngle);
                     double turretDeg = Math.toDegrees(turretAngle);
 
-                    turretDeg = Math.max(MIN_TURRET_UNGHI, Math.min(MAX_TURRET_UNGHI, turretDeg));
+                    turretDeg = Math.max(m.MIN_TURRET_ANGLE, Math.min(m.MAX_TURRET_ANGLE, turretDeg));
 
-                    double currentAngleDeg = -m.turela.getCurrentPosition() / TICKS_PER_DEGREE;
-                    double error = Math.abs(turretDeg - currentAngleDeg);
+                    // Convert to ticks for PID
+                    double targetTicks = -turretDeg * m.TICKS_PER_DEGREE;
+                    double currentTicks = m.turela.getCurrentPosition();
 
-                    if (error > ToleratnaPositionest) {
-                        int targetT = (int) (-turretDeg * TICKS_PER_DEGREE);
-                        m.turela.setTargetPosition(targetT);
-                        m.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                        m.turela.setPower(1);
+                    // Store for telemetry
+                    m.telem_targetDeg = turretDeg;
+                    m.telem_currentDeg = -currentTicks / m.TICKS_PER_DEGREE;
+
+                    // OUTER LOOP: Position PID outputs target velocity
+                    positionPID.setSetpoint(targetTicks);
+                    double targetVelocity = positionPID.performPID(currentTicks);
+
+                    // Update output range in case maxTurretVelocity changed
+                    positionPID.setOutputRange(-m.maxTurretVelocity, m.maxTurretVelocity);
+
+                    // Store telemetry data
+                    m.telem_posError = positionPID.getError();
+                    m.telem_targetVelocity = targetVelocity;
+                    m.telem_actualVelocity = m.turela.getVelocity();
+                    m.telem_posISum = positionPID.getISum();
+
+                    // INNER LOOP: REV Hub velocity PID (runs at ~2kHz on hardware)
+                    if (!positionPID.onTarget()) {
+                        ((DcMotorEx) m.turela).setVelocity(targetVelocity);
+                    } else {
+                        ((DcMotorEx) m.turela).setVelocity(0);
                     }
+
                 } else {
+                    // Manual control mode
                     m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
                     if (gamepad1.left_bumper) {
-                        m.turela.setPower(-0.2);
+                        ((DcMotorEx) m.turela).setVelocity(-100);
                     } else if (gamepad1.right_bumper) {
-                        m.turela.setPower(0.2);
+                        ((DcMotorEx) m.turela).setVelocity(100);
                     } else {
-                        m.turela.setPower(0);
+                        ((DcMotorEx) m.turela).setVelocity(0);
                     }
+
+                    // Reset PID state when not tracking
+                    positionPID.reset();
+                    positionPID.enable();
                 }
             }
         }
@@ -311,33 +338,31 @@ public class TelR extends OpMode {
                         sugere = true;
                         m.intake.setPower(1);
 
-                        imata = m.distanta.getDistance(DistanceUnit.CM);
+                        ledistante = m.distanta.getDistance(DistanceUnit.CM);
 
-                        if (imata < 20) {
+                        if (ledistante < 20) {
                             double servoPos = m.sortare.getPosition();
 
                             if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
-                                gamepad1.rumble(1000);
                                 slotOcupat[0] = true;
                                 if (!slotOcupat[1]) {
                                     m.sortare.setPosition(Pozitii.luarea2);
                                 } else if (!slotOcupat[2]) {
                                     m.sortare.setPosition(Pozitii.luarea3);
                                 }
-                                m.kdf(950);
+                                m.kdf(850);
                             } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
-                                gamepad1.rumble(1000);
                                 slotOcupat[1] = true;
                                 if (!slotOcupat[2]) {
                                     m.sortare.setPosition(Pozitii.luarea3);
                                 } else if (!slotOcupat[0]) {
                                     m.sortare.setPosition(Pozitii.luarea1);
                                 }
-                                m.kdf(950);
+                                m.kdf(850);
                             } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
-                                gamepad1.rumble(1000);
                                 slotOcupat[2] = true;
-                                m.kdf(950);
+                                gamepad1.rumble(2000);
+                                m.kdf(850);
                             }
                         }
                     } else if(gamepad1.b){
@@ -348,12 +373,6 @@ public class TelR extends OpMode {
                         sugere = false;
                         m.intake.setPower(0);
                     }
-                }
-
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -377,11 +396,17 @@ public class TelR extends OpMode {
 
                 synchronized (blocat) {
                     int loculete = getLoculete();
-
                     if (gamepad1.y && loculete > 0 && !sugere) {
                         trageShooting = true;
-                        m.shooter.setVelocity(1800);
-
+                        if(gamepad2.x){
+                            m.shooter.setVelocity(1800);
+                        }
+                        else if(gamepad2.y){
+                            m.shooter.setVelocity(2000);
+                        }
+                        else{
+                            m.shooter.setVelocity(1800);
+                        }
                         if (SortingPornit) {
                             switch (Sstare) {
                                 case SIDLE:
@@ -429,7 +454,7 @@ public class TelR extends OpMode {
                                     break;
 
                                 case GATA:
-                                    m.shooter.setVelocity(0);
+                                    m.shooter.setVelocity(950);
                                     trageShooting = false;
                                     Sstare = SortareShooter.SIDLE;
                                     break;
@@ -438,19 +463,14 @@ public class TelR extends OpMode {
                             rapidFireShoot();
                         }
                     } else {
+
                         if (Sstare != SortareShooter.SIDLE) {
-                            m.shooter.setVelocity(750);
+                            m.shooter.setVelocity(950);
                             m.sortare.setPosition(Pozitii.luarea1);
                             trageShooting = false;
                             Sstare = SortareShooter.SIDLE;
                         }
                     }
-                }
-
-                try {
-                    Thread.sleep(20);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -466,7 +486,7 @@ public class TelR extends OpMode {
                     else if (i == 1) m.sortare.setPosition(Pozitii.aruncare2);
                     else m.sortare.setPosition(Pozitii.aruncare3);
 
-                    m.kdf(1230);
+                    m.kdf(950);
 
                     m.Saruncare.setPosition(Pozitii.lansare);
                     m.kdf(150);
@@ -479,7 +499,7 @@ public class TelR extends OpMode {
 
             m.sortare.setPosition(Pozitii.luarea1);
             m.kdf(300);
-            m.shooter.setVelocity(750);
+            m.shooter.setVelocity(950);
             trageShooting = false;
             Sstare = SortareShooter.SIDLE;
         }
@@ -495,7 +515,7 @@ public class TelR extends OpMode {
                         else if (slot == 1) m.sortare.setPosition(Pozitii.aruncare2);
                         else m.sortare.setPosition(Pozitii.aruncare3);
 
-                        m.kdf(950);
+                        m.kdf(700);
 
                         boolean mov = m.color.green() <= Pozitii.mov_verde;
 
@@ -514,7 +534,7 @@ public class TelR extends OpMode {
                             else if (slot == 1) m.sortare.setPosition(Pozitii.aruncare2);
                             else m.sortare.setPosition(Pozitii.aruncare3);
 
-                            m.kdf(1300);
+                            m.kdf(950);
                             TrageBila();
                             slotOcupat[slot] = false;
                             break;
@@ -566,12 +586,6 @@ public class TelR extends OpMode {
                 }
 
                 POWER(FR / sm, BL / sm, BR / sm, FL / sm);
-
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
             }
         }
     });
@@ -582,10 +596,7 @@ public class TelR extends OpMode {
 
     @Override
     public void loop() {
-        telemetry.addData("x", lastRobotX);
-        telemetry.addData("Y", lastRobotY);
-        telemetry.addData("H", lastRobotH);
-        telemetry.addData("velocity", m.shooter.getVelocity());
+        telemetry.addData("Velocity", m.shooter.getVelocity());
         telemetry.update();
     }
 
