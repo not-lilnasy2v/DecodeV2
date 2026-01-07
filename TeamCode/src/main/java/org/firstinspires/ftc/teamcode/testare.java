@@ -1,22 +1,21 @@
 package org.firstinspires.ftc.teamcode;
 
-import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
-@TeleOp(name = "Shooter PID")
-@Configurable
+@TeleOp
+@Disabled
+
 public class testare extends LinearOpMode {
     private DcMotorEx shooter;
-    public static double P = 13;
-    public static double I = 0.0;
-    public static double D = 12;
-    public static double F = 14.40;
+    public final   double P = 10.23;
+    public final double I = 0.0;
+    public final  double D = 10.58;
+    public final double F = 14.95;
 
 
     @Override
@@ -24,7 +23,6 @@ public class testare extends LinearOpMode {
         shooter = hardwareMap.get(DcMotorEx.class, "shooter");
         shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         shooter.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        shooter.setDirection(DcMotorSimple.Direction.REVERSE);
 
         waitForStart();
 
@@ -32,11 +30,9 @@ public class testare extends LinearOpMode {
 
             PIDFCoefficients pidf = new PIDFCoefficients(P, I, D, F);
             shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pidf);
-            if(gamepad1.a) {
-                shooter.setVelocity(1800);
-            }if(gamepad1.x){
-                shooter.setVelocity(0);
-            }
+
+            shooter.setVelocity(-2000);
+
             telemetry.addData("Velocity", shooter.getVelocity());
             telemetry.update();
         }

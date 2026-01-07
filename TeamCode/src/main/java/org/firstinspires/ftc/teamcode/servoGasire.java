@@ -38,10 +38,10 @@ public class servoGasire extends LinearOpMode {
             }
 
 //            aruncare.setPosition(pos);
-//            sortare.setPosition(pos);
-            unghiD.setPosition(pos);
-
-            unghiS.setPosition(pos);
+            sortare.setPosition(pos);
+//            unghiD.setPosition(pos);
+//
+//            unghiS.setPosition(pos);
 
 //            turela.setTargetPosition(pos);
 //            turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);

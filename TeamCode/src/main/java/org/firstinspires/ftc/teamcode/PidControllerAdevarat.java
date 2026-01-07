@@ -1,30 +1,29 @@
 package org.firstinspires.ftc.teamcode;
 
-/**
- * PID controller - originally courtesy of Peter Tischler.
- * Fixed version with proper time handling, output clamping, and anti-windup.
- */
+// PID controller courtesy of Peter Tischler, with modifications.
 public class PidControllerAdevarat
 {
     private double m_P;                     // factor for "proportional" control
     private double m_I;                     // factor for "integral" control
     private double m_D;                     // factor for "derivative" control
     private double m_input;                 // sensor input for pid controller
-    private double m_maximumOutput = 1.0;   // maximum output
-    private double m_minimumOutput = -1.0;  // minimum output
-    private boolean m_outputClampEnabled = false;  // only clamp if explicitly set
-    private double m_maximumInput = 0.0;    // maximum input - limit setpoint to this
-    private double m_minimumInput = 0.0;    // minimum input - limit setpoint to this
-    private boolean m_continuous = false;   // do the endpoints wrap around? eg. Absolute encoder
+    private double m_maximumOutput = 1.0;	// |maximum output|
+    private double m_minimumOutput = -1.0;	// |minimum output|
+    private double m_maximumInput = 0.0;	// maximum input - limit setpoint to this
+    private double m_minimumInput = 0.0;	// minimum input - limit setpoint to this
+    private boolean m_continuous = false;	// do the endpoints wrap around? eg. Absolute encoder
     private boolean m_enabled = false;      // is the pid controller enabled
-    private double m_prevError = 0.0;       // previous error for derivative
+    private double m_prevError = 0.0;
+    private double m_prevPrevError= 0.0;// the prior sensor input (used to compute velocity)
     private double m_totalError = 0.0;      // the sum of the errors for use in the integral calc
-    private double m_tolerance = 0.01;      // the absolute error that is considered on target
+    private double m_tolerance = 0.01;      // the percentage error that is considered on target
     private double m_setpoint = 0.0;
     private double m_error = 0.0;
     private double m_result = 0.0;
-    private long m_lastTime = 0;            // last time in nanoseconds
 
+
+    public double getDError(){ return m_prevPrevError - m_error; }
+    public double getISum(){return m_totalError; }
     public PidControllerAdevarat(double Kp, double Ki, double Kd)
     {
         m_P = Kp;
@@ -33,91 +32,72 @@ public class PidControllerAdevarat
     }
 
     /**
-     * Core PID calculation with time correction.
+     * Read the input, calculate the output accordingly, and write to the output.
+     * This should only be called by the PIDTask
+     * and is created during initialization.
      */
     private void calculate()
     {
+        int sign = 1;
+        // If enabled then proceed into controller calculations
         if (m_enabled)
         {
-            // Calculate delta time in seconds using nanosecond precision
-            long now = System.nanoTime();
-            double dt;
-            if (m_lastTime == 0) {
-                dt = 0.02; // Assume 50Hz on first call
-            } else {
-                dt = (now - m_lastTime) / 1e9; // Convert nanos to seconds
-            }
-            m_lastTime = now;
-
-            // Prevent division by zero or negative dt
-            if (dt <= 0) {
-                dt = 0.001;
-            }
-
-            // Calculate the error signal
             m_error = m_setpoint - m_input;
+            // Calculate the error signal
 
             // If continuous is set to true allow wrap around
             if (m_continuous)
             {
-                double range = m_maximumInput - m_minimumInput;
-                if (range > 0 && Math.abs(m_error) > range / 2)
+                if (Math.abs(m_error) > (m_maximumInput - m_minimumInput) / 2)
                 {
                     if (m_error > 0)
-                        m_error = m_error - range;
+                        m_error = m_error - m_maximumInput + m_minimumInput;
                     else
-                        m_error = m_error + range;
+                        m_error = m_error + m_maximumInput - m_minimumInput;
                 }
             }
 
-            // Integrate the errors with anti-windup
-            // Only accumulate if:
-            // 1. Error is above tolerance (prevents small oscillation windup)
-            // 2. Integral term won't exceed output bounds (prevents saturation windup)
-            if (Math.abs(m_error) > m_tolerance)
-            {
-                double potentialTotalError = m_totalError + m_error * dt;
-                double potentialI = potentialTotalError * m_I;
+            // Integrate the errors as long as the upcoming integrator does
+            // not exceed the minimum and maximum output thresholds.
 
-                // Signed check - allows negative integral to be bounded correctly
-                if (potentialI >= m_minimumOutput && potentialI <= m_maximumOutput)
-                {
-                    m_totalError = potentialTotalError;
-                }
-            }
+            if ((Math.abs(m_totalError + m_error) * m_I < m_maximumOutput) &&
+                    (Math.abs(m_totalError + m_error) * m_I > m_minimumOutput) && (Math.abs(m_error) > Math.abs(m_tolerance)))
+                m_totalError += m_error;
 
-            // Perform the primary PID calculation with time correction
-            // P: proportional to current error
-            // I: proportional to accumulated error over time
-            // D: proportional to rate of change of error
-            double derivative = (m_error - m_prevError) / dt;
-            m_result = m_P * m_error + m_I * m_totalError + m_D * derivative;
+            // Perform the primary PID calculation
+            m_result = m_P * m_error + m_I * m_totalError + m_D * (m_error - m_prevError);
 
-            // Clamp output only if explicitly enabled via setOutputRange()
-            if (m_outputClampEnabled)
-            {
-                m_result = Math.max(m_minimumOutput, Math.min(m_maximumOutput, m_result));
-            }
-
-            // Store error for next derivative calculation
+            // Set the current error to the previous error for the next cycle.
+            m_prevPrevError = m_prevError;
             m_prevError = m_error;
+
+            // Make sure the final result is within bounds. If we constrain the result, we make
+            // sure the sign of the constrained result matches the original result sign.
         }
     }
 
     /**
      * Set the PID Controller gain parameters.
-     * Resets integral if Ki changes.
+     * Set the proportional, integral, and differential coefficients.
      * @param p Proportional coefficient
      * @param i Integral coefficient
      * @param d Differential coefficient
      */
     public void setPID(double p, double i, double d)
     {
-        if (i != m_I) {
+        if(i != m_I){
             m_totalError = 0;
         }
         m_P = p;
         m_I = i;
+
+//        //normalising the total error
+//        if(m_totalError * m_I < m_minimumOutput && m_I != 0.0){
+//            m_totalError = m_minimumOutput / m_I;
+//        }
+//        else if(m_totalError * m_I > m_maximumOutput && m_I != 0.0){
+//            m_totalError = m_maximumOutput / m_I;
+//        }
         m_D = d;
     }
 
@@ -150,6 +130,7 @@ public class PidControllerAdevarat
 
     /**
      * Return the current PID result for the last input set with setInput().
+     * This is always centered on zero and constrained the the max and min outs
      * @return the latest calculated output
      */
     public double performPID()
@@ -160,7 +141,8 @@ public class PidControllerAdevarat
 
     /**
      * Return the current PID result for the specified input.
-     * @param input Input value to be used to calculate the PID result.
+     * @param input The input value to be used to calculate the PID result.
+     * This is always centered on zero and constrained the the max and min outs
      * @return the latest calculated output
      */
     public double performPID(double input)
@@ -170,10 +152,10 @@ public class PidControllerAdevarat
     }
 
     /**
-     * Set the PID controller to consider the input to be continuous,
-     * Rather than using the max and min as constraints, it considers them to
-     * be the same point and automatically calculates the shortest route to
-     * the setpoint. Useful for angles.
+     *  Set the PID controller to consider the input to be continuous,
+     *  Rather then using the max and min in as constraints, it considers them to
+     *  be the same point and automatically calculates the shortest route to
+     *  the setpoint.
      * @param continuous Set to true turns on continuous, false turns off continuous
      */
     public void setContinuous(boolean continuous)
@@ -182,7 +164,10 @@ public class PidControllerAdevarat
     }
 
     /**
-     * Set the PID controller to consider the input to be continuous.
+     *  Set the PID controller to consider the input to be continuous,
+     *  Rather then using the max and min in as constraints, it considers them to
+     *  be the same point and automatically calculates the shortest route to
+     *  the setpoint.
      */
     public void setContinuous()
     {
@@ -191,30 +176,27 @@ public class PidControllerAdevarat
 
     /**
      * Sets the maximum and minimum values expected from the input.
-     * Used for continuous mode wrap-around and input clamping.
      *
-     * @param minimumInput the minimum value expected from the input
-     * @param maximumInput the maximum value expected from the input
+     * @param minimumInput the minimum value expected from the input, always positive
+     * @param maximumInput the maximum value expected from the output, always positive
      */
     public void setInputRange(double minimumInput, double maximumInput)
     {
-        m_minimumInput = minimumInput;
-        m_maximumInput = maximumInput;
+        m_minimumInput = Math.abs(minimumInput);
+        m_maximumInput = Math.abs(maximumInput);
         setSetpoint(m_setpoint);
     }
 
     /**
-     * Sets the minimum and maximum output values.
-     * Enables output clamping when called.
+     * Sets the minimum and maximum values to write.
      *
-     * @param minimumOutput the minimum value to write to the output
-     * @param maximumOutput the maximum value to write to the output
+     * @param minimumOutput the minimum value to write to the output, always positive
+     * @param maximumOutput the maximum value to write to the output, always positive
      */
     public void setOutputRange(double minimumOutput, double maximumOutput)
     {
-        m_minimumOutput = minimumOutput;
-        m_maximumOutput = maximumOutput;
-        m_outputClampEnabled = true;
+        m_minimumOutput = Math.abs(minimumOutput);
+        m_maximumOutput = Math.abs(maximumOutput);
     }
 
     /**
@@ -223,20 +205,21 @@ public class PidControllerAdevarat
      */
     public void setSetpoint(double setpoint)
     {
-        // Clamp setpoint to input range if range is valid
+        int     sign = 1;
+
         if (m_maximumInput > m_minimumInput)
         {
-            if (setpoint > m_maximumInput)
-                m_setpoint = m_maximumInput;
-            else if (setpoint < m_minimumInput)
-                m_setpoint = m_minimumInput;
+            if (setpoint < 0) sign = -1;
+
+            if (Math.abs(setpoint) > m_maximumInput)
+                m_setpoint = m_maximumInput * sign;
+            else if (Math.abs(setpoint) < m_minimumInput)
+                m_setpoint = m_minimumInput * sign;
             else
                 m_setpoint = setpoint;
         }
         else
-        {
             m_setpoint = setpoint;
-        }
     }
 
     /**
@@ -249,7 +232,7 @@ public class PidControllerAdevarat
     }
 
     /**
-     * Returns the current difference of the input from the setpoint
+     * Retruns the current difference of the input from the setpoint
      * @return the current error
      */
     public synchronized double getError()
@@ -258,37 +241,25 @@ public class PidControllerAdevarat
     }
 
     /**
-     * Set the absolute error which is considered tolerable for use with onTarget().
-     * @param tolerance absolute error which is tolerable
+     * Set the percentage error which is considered tolerable for use with
+     * OnTarget. (Input of 15.0 = 15 percent)
+     * @param percent error which is tolerable
      */
-    public void setTolerance(double tolerance)
+    public void setTolerance(double percent)
     {
-        m_tolerance = Math.abs(tolerance);
+        m_tolerance = percent;
     }
 
     /**
-     * Return true if the error is within the tolerance.
-     * Correctly handles continuous mode wrap-around.
+     * Return true if the error is within the percentage of the total input range,
+     * determined by setTolerance. This assumes that the maximum and minimum input
+     * were set using setInputRange.
      * @return true if the error is less than the tolerance
      */
     public boolean onTarget()
     {
-        // Calculate error with continuous wrap-around if enabled
-        double error = m_setpoint - m_input;
-
-        if (m_continuous)
-        {
-            double range = m_maximumInput - m_minimumInput;
-            if (range > 0 && Math.abs(error) > range / 2)
-            {
-                if (error > 0)
-                    error = error - range;
-                else
-                    error = error + range;
-            }
-        }
-
-        return (Math.abs(error) < m_tolerance);
+        m_error = m_setpoint - m_input;
+        return (Math.abs(m_error) < Math.abs(m_tolerance));
     }
 
     /**
@@ -307,17 +278,10 @@ public class PidControllerAdevarat
         m_enabled = false;
     }
 
-    /**
-     * Check if the PID controller is enabled
-     * @return true if enabled
-     */
-    public boolean enabled()
-    {
-        return m_enabled;
-    }
+    public boolean enabled() {return m_enabled;}
 
     /**
-     * Reset the previous error, the integral term, timestamp, and disable the controller.
+     * Reset the previous error,, the integral term, and disable the controller.
      */
     public void reset()
     {
@@ -325,7 +289,6 @@ public class PidControllerAdevarat
         m_prevError = 0;
         m_totalError = 0;
         m_result = 0;
-        m_lastTime = 0;
     }
 
     /**
@@ -334,28 +297,20 @@ public class PidControllerAdevarat
      */
     public void setInput(double input)
     {
-        // Clamp input to range if range is valid (normal clamping, no weird minimum-forcing)
+        int sign = 1;
+
         if (m_maximumInput > m_minimumInput)
         {
-            if (input > m_maximumInput)
-                m_input = m_maximumInput;
-            else if (input < m_minimumInput)
-                m_input = m_minimumInput;
+            if (input < 0) sign = -1;
+
+            if (Math.abs(input) > m_maximumInput)
+                m_input = m_maximumInput * sign;
+            else if (Math.abs(input) < m_minimumInput)
+                m_input = m_minimumInput * sign;
             else
                 m_input = input;
         }
         else
-        {
             m_input = input;
-        }
-    }
-
-    /**
-     * Get the integral sum (for debugging/tuning)
-     * @return the accumulated integral (time-corrected)
-     */
-    public double getISum()
-    {
-        return m_totalError;
     }
 }
