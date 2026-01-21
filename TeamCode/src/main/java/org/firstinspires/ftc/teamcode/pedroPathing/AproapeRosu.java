@@ -1,13 +1,14 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
@@ -25,26 +26,30 @@ public class AproapeRosu extends OpMode {
 
     private static final double TARGET_X = 144;
     private static final double TARGET_Y = 144;
-    private static final double TICKS_PER_DEGREE = 1.35;
-    private static final double MAX_TURRET_ANGLE = 90;
-    private static final double MIN_TURRET_ANGLE = -90;
-    private static final double TURRET_POWER = 1;
 
-    private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
-    private final Pose shootingPose = new Pose(71.41317423834907, 76.61010318352976, Math.toRadians(50));
-    private final Pose parkPose = new Pose(37.88586238935889, 33.69514401682233, Math.toRadians(90));
+    // Turret servo constants (Axon Max 355 degrees)
+    private static final double TURRET_SERVO_CENTER = 0.5;
+    private static final double TURRET_DEGREES_RANGE = 355.0;
+    private static final double MAX_TURRET_ANGLE = 110;
+    private static final double MIN_TURRET_ANGLE = -110;
 
-    private Path laShooting, laParc;
+    private final Pose startPose = new Pose(88, 8,Math.toRadians(90));
+    private final Pose shootingPose = new Pose(82.53216783216781, 22.069930069930074, Math.toRadians(90));
+
+    private final Pose parkingPose = new Pose(100, 8, Math.toRadians(90));
+
+    private Path laShooting;
+    private PathChain laParc;
 
     private boolean TragereInProgres = false;
     private int ShootingStare = 0;
 
     public void buildPaths() {
         laShooting = new Path(new BezierLine(startPose, shootingPose));
-        laShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(50));
+        laShooting.setConstantHeadingInterpolation(startPose.getHeading());
 
-        laParc = new Path(new BezierLine(shootingPose, parkPose));
-        laParc.setLinearHeadingInterpolation(Math.toRadians(50), Math.toRadians(90));
+//        laParc = new Path(new BezierLine(shootingPose,parkingPose));
+//        
     }
 
     private void TragereLaPupitru() {
@@ -52,7 +57,7 @@ public class AproapeRosu extends OpMode {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(1800);
+                n.shooter.setVelocity(2200);
                 n.unghiS.setPosition(pop.posUnghi);
                 n.unghiD.setPosition(pop.posUnghi);
                 actionTimer.resetTimer();
@@ -156,13 +161,6 @@ public class AproapeRosu extends OpMode {
         return angle;
     }
 
-    private void setTurretPosition(double angleDegrees) {
-        int targetTicks = (int) (angleDegrees * TICKS_PER_DEGREE);
-        n.turela.setTargetPosition(-targetTicks);
-        n.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        n.turela.setPower(TURRET_POWER);
-    }
-
     private void trackTargetWithOdometry() {
         Pose currentPose = follower.getPose();
         double robotX = currentPose.getX();
@@ -174,12 +172,17 @@ public class AproapeRosu extends OpMode {
         double angleToTarget = Math.atan2(dy, dx);
 
         double turretAngleRad = angleToTarget - robotHeading;
+
         turretAngleRad = normalizeAngle(turretAngleRad);
 
         double turretAngleDeg = Math.toDegrees(turretAngleRad);
-        turretAngleDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretAngleDeg));
 
-        setTurretPosition(turretAngleDeg);
+        double posS = n.turelaS.angleToPosition(turretAngleDeg);
+        double posD = n.turelaD.angleToPosition(turretAngleDeg);
+
+        n.turelaS.setPosition(posS);
+        n.turelaD.setPosition(posD);
+
     }
 
     public void autonomousPathUpdate() {
@@ -223,14 +226,8 @@ public class AproapeRosu extends OpMode {
                 setPathState(5);
                 break;
 
-            case 5:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(parkPose);
-                    setPathState(6);
-                }
-                break;
 
-            case 6:
+            case 5:
                 setPathState(-1);
                 break;
 
@@ -249,6 +246,7 @@ public class AproapeRosu extends OpMode {
         follower.update();
         autonomousPathUpdate();
 
+        telemetry.addData("pose", follower.getPose());
         telemetry.addData("Path State", pathState);
         telemetry.addData("Loculete", n.loculete);
         telemetry.update();
@@ -277,13 +275,12 @@ public class AproapeRosu extends OpMode {
         opmodeTimer.resetTimer();
         setPathState(0);
         TragereInProgres = false;
-        n.loculete = 3;  // Preloaded with 3 balls
+        n.loculete = 3;
         n.sortare.setPosition(Pozitii.luarea1);
     }
 
     @Override
     public void stop() {
-        // Save robot position for TeleOp
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();

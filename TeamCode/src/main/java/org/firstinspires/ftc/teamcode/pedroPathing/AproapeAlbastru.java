@@ -4,10 +4,10 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
@@ -24,27 +24,26 @@ public class AproapeAlbastru extends OpMode {
     private int pathState;
 
     private static final double TARGET_X = 0;
-    private static final double TARGET_Y = 144;
-    private static final double TICKS_PER_DEGREE = 1.35;
-    private static final double MAX_TURRET_ANGLE = 90;
-    private static final double MIN_TURRET_ANGLE = -90;
-    private static final double TURRET_POWER = 1;
+    private static final double TARGET_Y = 130;
 
     private final Pose startPose = new Pose(56, 8, Math.toRadians(90));
-    private final Pose shootingPose = new Pose(72.25135703457383, 75.10137415032521, Math.toRadians(142));
-    private final Pose parkPose = new Pose(104.94048608733925, 34.030417135312256, Math.toRadians(90));
+    private final Pose shootingPose = new Pose(64.39160839160837, 24.083916083916087, Math.toRadians(90));
+    private final Pose parkingPose = new Pose(20, 10, Math.toRadians(90));
 
-    private Path laShooting, laParc;
+    private Path laShooting;
+    private PathChain laParc;
 
     private boolean TragereInProgres = false;
     private int ShootingStare = 0;
 
     public void buildPaths() {
         laShooting = new Path(new BezierLine(startPose, shootingPose));
-        laShooting.setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(142));
+        laShooting.setConstantHeadingInterpolation(startPose.getHeading());
 
-        laParc = new Path(new BezierLine(shootingPose, parkPose));
-        laParc.setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(90));
+        laParc = follower.pathBuilder()
+                .addPath(new BezierLine(shootingPose, parkingPose))
+                .setTangentHeadingInterpolation()
+                .build();
     }
 
     private void TragereLaPupitru() {
@@ -52,7 +51,7 @@ public class AproapeAlbastru extends OpMode {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(1800);
+                n.shooter.setVelocity(1900);
                 n.unghiS.setPosition(pop.posUnghi);
                 n.unghiD.setPosition(pop.posUnghi);
                 actionTimer.resetTimer();
@@ -150,18 +149,6 @@ public class AproapeAlbastru extends OpMode {
         }
     }
 
-    private double normalizeAngle(double angle) {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle < -Math.PI) angle += 2 * Math.PI;
-        return angle;
-    }
-
-    private void setTurretPosition(double angleDegrees) {
-        int targetTicks = (int) (angleDegrees * TICKS_PER_DEGREE);
-        n.turela.setTargetPosition(-targetTicks);
-        n.turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        n.turela.setPower(TURRET_POWER);
-    }
 
     private void trackTargetWithOdometry() {
         Pose currentPose = follower.getPose();
@@ -174,12 +161,18 @@ public class AproapeAlbastru extends OpMode {
         double angleToTarget = Math.atan2(dy, dx);
 
         double turretAngleRad = angleToTarget - robotHeading;
+
         turretAngleRad = normalizeAngle(turretAngleRad);
 
         double turretAngleDeg = Math.toDegrees(turretAngleRad);
-        turretAngleDeg = Math.max(MIN_TURRET_ANGLE, Math.min(MAX_TURRET_ANGLE, turretAngleDeg));
 
-        setTurretPosition(turretAngleDeg);
+        double posS = n.turelaS.angleToPosition(turretAngleDeg);
+        double posD = n.turelaD.angleToPosition(turretAngleDeg);
+
+        n.turelaS.setPosition(posS);
+        n.turelaD.setPosition(posD);
+
+
     }
 
     public void autonomousPathUpdate() {
@@ -224,13 +217,6 @@ public class AproapeAlbastru extends OpMode {
                 break;
 
             case 5:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(parkPose);
-                    setPathState(6);
-                }
-                break;
-
-            case 6:
                 setPathState(-1);
                 break;
 
@@ -290,5 +276,10 @@ public class AproapeAlbastru extends OpMode {
 
         n.shooter.setVelocity(0);
         n.intake.setPower(0);
+    }
+    private double normalizeAngle(double angle) {
+        while (angle > Math.PI) angle -= 2 * Math.PI;
+        while (angle < -Math.PI) angle += 2 * Math.PI;
+        return angle;
     }
 }

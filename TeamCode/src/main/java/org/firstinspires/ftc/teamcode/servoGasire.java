@@ -12,9 +12,9 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 
 public class servoGasire extends LinearOpMode {
     double pos = 0.5;
-    private ServoImplEx aruncare, sortare, unghiD, unghiS;
+    private ServoImplEx aruncare, sortare, unghiD, unghiS,turelaS,turelaD;
     private DcMotorEx turela;
-//int pos = 0;
+//int pos;
     @Override
     public void runOpMode() {
 
@@ -22,14 +22,16 @@ public class servoGasire extends LinearOpMode {
        aruncare = hardwareMap.get(ServoImplEx.class, "aruncare");
         unghiD = hardwareMap.get(ServoImplEx.class, "unghiD");
         unghiS = hardwareMap.get(ServoImplEx.class, "unghiS");
-        turela = hardwareMap.get(DcMotorEx.class, "turela");
-        turela.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-
-        turela.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-
+        turelaD= hardwareMap.get(ServoImplEx.class, "turelaD");
+        turelaS = hardwareMap.get(ServoImplEx.class, "turelaS");
+//        turela = hardwareMap.get(DcMotorEx.class, "turela");
+//        turela.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+////
+//        turela.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+//        pos= turela.getCurrentPosition();
         waitForStart();
         while (opModeIsActive()) {
-
+//            pos= turela.getCurrentPosition();
             if (gamepad1.a) {
                 pos += 0.0005;
             }
@@ -38,12 +40,13 @@ public class servoGasire extends LinearOpMode {
             }
 
 //            aruncare.setPosition(pos);
-            sortare.setPosition(pos);
+//            sortare.setPosition(pos);
 //            unghiD.setPosition(pos);
 //
 //            unghiS.setPosition(pos);
+            turelaD.setPosition(pos);
+            turelaS.setPosition(pos);
 
-//            turela.setTargetPosition(pos);
 //            turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 //            turela.setPower(0.1);
 

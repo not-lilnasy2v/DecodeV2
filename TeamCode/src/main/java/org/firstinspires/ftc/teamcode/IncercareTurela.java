@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -9,6 +10,7 @@ import com.qualcomm.hardware.limelightvision.LLResultTypes.FiducialResult;
 import java.util.List;
 
 @TeleOp(name = "Limelight AprilTag ID")
+@Disabled
 public class IncercareTurela extends LinearOpMode {
 
     private Limelight3A limelight;
