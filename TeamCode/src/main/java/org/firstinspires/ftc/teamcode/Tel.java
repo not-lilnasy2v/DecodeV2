@@ -19,6 +19,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp(name = "Main")
 @Configurable
 public class Tel extends OpMode {
+
+    // 50 mov // 60 - > verde
     private DcMotorEx frontRight, frontLeft, backRight, backLeft;
     private Follower  follower;
     volatile boolean stop;
@@ -134,8 +136,8 @@ public class Tel extends OpMode {
                     idTag=23;
                 }
                 if(gamepad1.touchpad){
-                m.turelaS.setPosition(0);
-                m.turelaD.setPosition(0);
+                    m.turelaS.setPosition(0);
+                    m.turelaD.setPosition(0);
                 }
                 // Intake toggle
                 boolean gamepad1_a = gamepad1.a;
@@ -172,6 +174,7 @@ public class Tel extends OpMode {
                 double currentY = currentPose.getY();
                 double currentH = currentPose.getHeading();
 
+
                 if (tracking) {
 
                     double dx = TargetX - currentX;
@@ -181,7 +184,6 @@ public class Tel extends OpMode {
                     double turretAngleRad = unghiLaTarget - currentH;
 
                     turretAngleRad = normalizeAngle(turretAngleRad);
-
 
                     double turretAngleDeg = Math.toDegrees(turretAngleRad);
 
@@ -197,11 +199,11 @@ public class Tel extends OpMode {
                 }
                 else {
                     if (gamepad1.left_bumper) {
-                        double pos = m.turelaS.getPosition() + 0.0135;
+                        double pos = m.turelaS.getPosition() + 0.035;
                         m.turelaS.setPosition(pos);
                         m.turelaD.setPosition(pos);
                     } else if (gamepad1.right_bumper) {
-                        double pos = m.turelaS.getPosition() - 0.0135;
+                        double pos = m.turelaS.getPosition() - 0.035;
                         m.turelaS.setPosition(pos);
                         m.turelaD.setPosition(pos);
                     }
@@ -393,7 +395,7 @@ public class Tel extends OpMode {
         }
 
         private void asteaptaVelocity() {
-            double tolerance = targetShooterVelocity * 0.04;
+            double tolerance = targetShooterVelocity * 0.05;
             int stableCount = 0;
             int maxWait = 40;
             int waited = 0;
@@ -486,7 +488,7 @@ public class Tel extends OpMode {
             telemetry.addData("Slot " + (i + 1), status);
         }
         telemetry.addData("Total biloace", getLoculete());
-
+        telemetry.addData("turela", m.turelaD.getPosition());
         telemetry.addData("unghi", posU);
         telemetry.addData("distanta", distantare);
         telemetry.update();

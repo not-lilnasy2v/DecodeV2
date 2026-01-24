@@ -25,9 +25,8 @@ public class AproapeRosu extends OpMode {
     private int pathState;
 
     private static final double TARGET_X = 144;
-    private static final double TARGET_Y = 144;
+    private static final double TARGET_Y = 149;
 
-    // Turret servo constants (Axon Max 355 degrees)
     private static final double TURRET_SERVO_CENTER = 0.5;
     private static final double TURRET_DEGREES_RANGE = 355.0;
     private static final double MAX_TURRET_ANGLE = 110;
@@ -57,7 +56,7 @@ public class AproapeRosu extends OpMode {
             case 0:
                 PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                 n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(2200);
+                n.shooter.setVelocity(1900);
                 n.unghiS.setPosition(pop.posUnghi);
                 n.unghiD.setPosition(pop.posUnghi);
                 actionTimer.resetTimer();

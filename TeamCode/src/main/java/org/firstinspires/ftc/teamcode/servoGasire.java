@@ -33,19 +33,19 @@ public class servoGasire extends LinearOpMode {
         while (opModeIsActive()) {
 //            pos= turela.getCurrentPosition();
             if (gamepad1.a) {
-                pos += 0.0005;
+                pos += 0.0003;
             }
             if (gamepad1.b) {
-                pos -= 0.0005;
+                pos -= 0.0003;
             }
 
-//            aruncare.setPosition(pos);
+            aruncare.setPosition(pos);
 //            sortare.setPosition(pos);
 //            unghiD.setPosition(pos);
 //
 //            unghiS.setPosition(pos);
-            turelaD.setPosition(pos);
-            turelaS.setPosition(pos);
+//            turelaD.setPosition(pos);
+//            turelaS.setPosition(pos);
 
 //            turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 //            turela.setPower(0.1);

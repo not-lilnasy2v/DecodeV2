@@ -30,7 +30,7 @@ public class TelR extends OpMode {
     private static double voltajeNominale = 12.68;
 
 
-    public boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,Touch = false,trouch=false;
+    public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,Touch = false,trouch=false;
     private double ledistante, posU;
     int idTag = RobotPozitie.idTag;
 
@@ -463,7 +463,7 @@ public class TelR extends OpMode {
         }
 
         private void asteaptaVelocity() {
-            double tolerance = targetShooterVelocity * 0.04;
+            double tolerance = targetShooterVelocity * 0.05;
             int stableCount = 0;
             int maxWait = 40;
             int waited = 0;

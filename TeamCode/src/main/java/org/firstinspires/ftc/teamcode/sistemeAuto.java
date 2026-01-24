@@ -30,7 +30,7 @@ public class sistemeAuto {
     public static final int min_latime = 10;
     public static final int min_Inaltime = 10;
 
-    public final double SkP = 25, SkI = 0.050, SkF = 12.00, SkD = 0.50;
+    public final double SkP = 70, SkI = 0.050, SkF = 13.50, SkD = 5;
     public int loculete = 3;
 
     public void initsisteme(HardwareMap hard) {
@@ -67,9 +67,7 @@ public class sistemeAuto {
 
         distanta = hard.get(DistanceSensor.class, "distanta");
 
-        // HuskyLens for ball color detection
-        huskyLens = hard.get(HuskyLens.class, "husky");
-        huskyLens.selectAlgorithm(HuskyLens.Algorithm.COLOR_RECOGNITION);
+
 
         intake = hard.get(DcMotorEx.class, "intake");
         intake.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
