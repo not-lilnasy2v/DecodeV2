@@ -6,6 +6,8 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes.FiducialResult;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import java.util.List;
 
@@ -14,6 +16,7 @@ import java.util.List;
 public class IncercareTurela extends LinearOpMode {
 
     private Limelight3A limelight;
+    private DcMotorEx shooter,shooter2;
 
     @Override
     public void runOpMode() {
@@ -21,22 +24,21 @@ public class IncercareTurela extends LinearOpMode {
         limelight.pipelineSwitch(1);
         limelight.start();
 
-        telemetry.addData("Status", "Initialized. Point at an AprilTag!");
         telemetry.update();
 
+        shooter=  hardwareMap.get(DcMotorEx.class, "shooter");
+        shooter2 = hardwareMap.get(DcMotorEx.class, "shooter2");
+        shooter2.setDirection(DcMotorEx.Direction.REVERSE);
         waitForStart();
 
         while (opModeIsActive()) {
-            LLResult result = limelight.getLatestResult();
-
-            if (result != null && result.isValid()) {
-                List<FiducialResult> fiducials = result.getFiducialResults();
-
-                for (FiducialResult tag : fiducials) {
-                    telemetry.addData("Tag ID Found", tag.getFiducialId());
-                }
+//            shooter.setPower(1);
+            shooter2.setPower(1);
+//2000
+//1960
+//                telemetry.addData("velocitate1", shooter.getVelocity());
+                telemetry.addData("velocitate", shooter2.getVelocity());
                 telemetry.update();
             }
         }
     }
-}

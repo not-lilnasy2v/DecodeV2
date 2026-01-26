@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import static java.lang.Math.PI;
 import static java.lang.Math.abs;
 import static java.lang.Math.addExact;
 
@@ -51,11 +52,15 @@ public class Tel extends OpMode {
 
     private void applyVoltageCompensatedPIDF() {
         double currentVoltage = m.voltageSensor.getVoltage();
-        currentVoltage = Math.max(10.0, Math.min(14.0, currentVoltage));
+        currentVoltage = Math.max(9.0, Math.min(14.0, currentVoltage));
         double voltageCompensation = voltajeNominale / currentVoltage;
         double compensatedF = m.SkF * voltageCompensation;
         PIDFCoefficients compensatedPID = new PIDFCoefficients(m.SkP, m.SkI, m.SkD, compensatedF);
+//        PIDFCoefficients compensatedPIDS = new PIDFCoefficients(m.SkPS, m.SkIS, m.SkDS, compensatedF);
         m.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
+//        m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPIDF);
+
+        m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
     }
 
     @Override
@@ -89,6 +94,7 @@ public class Tel extends OpMode {
     }
 
     public void start() {
+        follower.update();
         Chassis.start();
         Butoane.start();
         Turela.start();
@@ -158,6 +164,7 @@ public class Tel extends OpMode {
                 }
                 if(gamepad2.touchpad){
                     m.shooter.setVelocity(0);
+                    m.shooter2.setVelocity(0);
                 }
             }
         }
@@ -279,11 +286,11 @@ public class Tel extends OpMode {
                     if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
                         applyVoltageCompensatedPIDF();
-
-                        targetShooterVelocity = 1650;
+                        targetShooterVelocity = 2000;
                         if (gamepad2.x) targetShooterVelocity = 1650;
                         else if (gamepad2.y) targetShooterVelocity = 2000;
                         m.shooter.setVelocity(targetShooterVelocity);
+                        m.shooter2.setVelocity(targetShooterVelocity);
 
                         asteaptaVelocity();
 
@@ -297,6 +304,7 @@ public class Tel extends OpMode {
                         m.sortare.setPosition(Pozitii.luarea1);
                         m.kdf(150);
                         m.shooter.setVelocity(950);
+                        m.shooter2.setVelocity(950);
                         trageShooting = false;
                     }
                 }

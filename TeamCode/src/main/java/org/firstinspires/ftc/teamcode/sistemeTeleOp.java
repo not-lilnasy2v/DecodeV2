@@ -15,7 +15,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.NouHard.ServoImplExEx;
 
 public class sistemeTeleOp {
-    public DcMotorEx shooter, intake;
+    public DcMotorEx shooter, intake, shooter2;
     public ServoImplExEx Saruncare, sortare, unghiD, unghiS, turelaS, turelaD;
 
     public DistanceSensor distanta;
@@ -23,7 +23,8 @@ public class sistemeTeleOp {
     public NormalizedColorSensor colors;
     public NormalizedColorSensor colorv2;
 
-    public final double SkP = 70, SkI = 0.050, SkF = 13.50, SkD = 5;
+    public final double SkP = 80, SkI = 0.050, SkF = 15.50, SkD = 5;
+    public final double SkPS = 70, SkIS = 0.050, SkFS = 13.50, SkDS = 5;
 
     public static final int CULOARE_VERDE = 0;
     public static final int CULOARE_MOV = 1;
@@ -56,11 +57,14 @@ public class sistemeTeleOp {
         turelaD.setPosition(0.5);
 
         shooter = hard.get(DcMotorEx.class, "shooter");
-        PIDFCoefficients pid = new PIDFCoefficients(SkP, SkI, SkD, SkF);
+        shooter2 = hard.get(DcMotorEx.class, "shooter2");
         shooter.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
         shooter.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shooter.setDirection(DcMotorEx.Direction.REVERSE);
+        shooter.setDirection(DcMotorEx.Direction.FORWARD);
+
+        shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        shooter2.setDirection(DcMotorEx.Direction.REVERSE);
 
         Saruncare = ServoImplExEx.get(hard, "aruncare");
         Saruncare.setPosition(Pozitii.coborare);
@@ -68,10 +72,12 @@ public class sistemeTeleOp {
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
         unghiS = ServoImplExEx.get(hard, "unghiS");
-        unghiS.setPosition(0.1961);
-        unghiD.setPosition(0.1961);
-        unghiS.setMaxPosition(0.3538);
-        unghiD.setMaxPosition(0.3538);
+        unghiS.setPosition(0.3071);
+        unghiD.setPosition(0.3071);
+        unghiD.setMinPosition(0.1485);
+        unghiS.setMinPosition(0.1485);
+        unghiS.setMaxPosition(0.4829);
+        unghiD.setMaxPosition(0.4829);
 
         distanta = hard.get(DistanceSensor.class, "distanta");
 
@@ -105,14 +111,7 @@ public class sistemeTeleOp {
         double distantaCM = distanta.getDistance(org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM);
         return distantaCM <= Pozitii.DISTANCE_CM;
     }
-
-
-    /**
-     * Detectie RAPIDA cu multi-sampling si voting.
-     * Citeste ambii senzori de mai multe ori si foloseste consensul.
-     */
     public int detecteazaBiloaca() {
-        // Check cache pentru stabilitate
         long now = System.currentTimeMillis();
         if (lastDetectedColor != CULOARE_NIMIC && (now - lastDetectionTime) < DETECTION_CACHE_MS) {
             return lastDetectedColor;
@@ -121,18 +120,14 @@ public class sistemeTeleOp {
         int verdeVotes = 0;
         int movVotes = 0;
 
-        // Multi-sample rapid - citeste de SAMPLES ori
         for (int i = 0; i < SAMPLES; i++) {
-            // Citire paralela ambii senzori
             int mainResult = detectSingleMain();
-            int backupResult = detectSingleBackup();
+            int backupResult = detectBackup();
 
-            // Votare
             if (mainResult == CULOARE_VERDE || backupResult == CULOARE_VERDE) verdeVotes++;
             if (mainResult == CULOARE_MOV || backupResult == CULOARE_MOV) movVotes++;
         }
 
-        // Determina culoarea prin consens
         int result = CULOARE_NIMIC;
         if (verdeVotes >= MIN_VOTES && verdeVotes > movVotes) {
             result = CULOARE_VERDE;
@@ -140,7 +135,6 @@ public class sistemeTeleOp {
             result = CULOARE_MOV;
         }
 
-        // Update cache
         if (result != CULOARE_NIMIC) {
             lastDetectedColor = result;
             lastDetectionTime = now;
@@ -148,15 +142,10 @@ public class sistemeTeleOp {
 
         return result;
     }
-
-    /**
-     * Detectie INSTANT - o singura citire, maxim viteza.
-     * Foloseste pentru detectie continua in loop rapid.
-     */
     public int detecteazaBiloocaInstant() {
         int mainResult = detectSingleMain();
         if (mainResult != CULOARE_NIMIC) return mainResult;
-        return detectSingleBackup();
+        return detectBackup();
     }
 
     public int detecteazaBiloacaCuDistanta() {
@@ -166,9 +155,6 @@ public class sistemeTeleOp {
         return detecteazaBiloaca();
     }
 
-    /**
-     * Detectie singulara MAIN - optimizata, fara alocare memorie
-     */
     private int detectSingleMain() {
         NormalizedRGBA rgba = colors.getNormalizedColors();
         Color.colorToHSV(rgba.toColor(), hsvMain);
@@ -177,16 +163,13 @@ public class sistemeTeleOp {
         float sat = hsvMain[1];
         float val = hsvMain[2];
 
-        // Early exit pentru performanta
         if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) {
             return CULOARE_NIMIC;
         }
 
-        // VERDE: 120-170
         if (hue >= Pozitii.MAIN_VERDE_HUE_MIN && hue <= Pozitii.MAIN_VERDE_HUE_MAX) {
             return CULOARE_VERDE;
         }
-        // MOV: 220-280
         if (hue >= Pozitii.MAIN_MOV_HUE_MIN && hue <= Pozitii.MAIN_MOV_HUE_MAX) {
             return CULOARE_MOV;
         }
@@ -194,10 +177,7 @@ public class sistemeTeleOp {
         return CULOARE_NIMIC;
     }
 
-    /**
-     * Detectie singulara BACKUP - optimizata, fara alocare memorie
-     */
-    private int detectSingleBackup() {
+    private int detectBackup() {
         NormalizedRGBA rgba = colorv2.getNormalizedColors();
         Color.colorToHSV(rgba.toColor(), hsvBackup);
 
@@ -205,16 +185,13 @@ public class sistemeTeleOp {
         float sat = hsvBackup[1];
         float val = hsvBackup[2];
 
-        // Early exit pentru performanta
         if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) {
             return CULOARE_NIMIC;
         }
 
-        // VERDE: 120-170
         if (hue >= Pozitii.BACKUP_VERDE_HUE_MIN && hue <= Pozitii.BACKUP_VERDE_HUE_MAX) {
             return CULOARE_VERDE;
         }
-        // MOV: 235-285
         if (hue >= Pozitii.BACKUP_MOV_HUE_MIN && hue <= Pozitii.BACKUP_MOV_HUE_MAX) {
             return CULOARE_MOV;
         }
@@ -222,30 +199,23 @@ public class sistemeTeleOp {
         return CULOARE_NIMIC;
     }
 
-    /**
-     * Reseteaza cache-ul de detectie.
-     * Cheama dupa ce bila a fost procesata.
-     */
-    public void resetDetectionCache() {
+    public void resetareDetection() {
         lastDetectedColor = CULOARE_NIMIC;
         lastDetectionTime = 0;
     }
-    public float[] getMainSensorHSV() {
+    public float[] MainSensor() {
         NormalizedRGBA rgba = colors.getNormalizedColors();
         Color.colorToHSV(rgba.toColor(), hsvMain);
         return hsvMain;
     }
 
-    public float[] getBackupSensorHSV() {
+    public float[] BackUpSensor() {
         NormalizedRGBA rgba = colorv2.getNormalizedColors();
         Color.colorToHSV(rgba.toColor(), hsvBackup);
         return hsvBackup;
     }
 
-    /**
-     * Returneaza ultima culoare detectata din cache.
-     */
-    public int getLastDetectedColor() {
+    public int UltimaDetectare() {
         return lastDetectedColor;
     }
 }

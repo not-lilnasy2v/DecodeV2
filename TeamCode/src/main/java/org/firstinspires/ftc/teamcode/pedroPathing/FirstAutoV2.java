@@ -116,7 +116,9 @@ public class FirstAutoV2 extends OpMode {
         if (!shooterPreparado) {
             PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF );
             n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
+            n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
             n.shooter.setVelocity(1450);
+            n.shooter2.setVelocity(1450);
             n.unghiS.setPosition(pop.posUnghi);
             n.unghiD.setPosition(pop.posUnghi);
             shooterPreparado = true;
@@ -131,7 +133,9 @@ public class FirstAutoV2 extends OpMode {
                 if (!shooterPreparado) {
                     PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                     n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
+                    n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
                     n.shooter.setVelocity(1450);
+                    n.shooter2.setVelocity(1450);
                     n.unghiS.setPosition(pop.posUnghi);
                     n.unghiD.setPosition(pop.posUnghi);
                     actionTimer.resetTimer();
@@ -218,6 +222,7 @@ public class FirstAutoV2 extends OpMode {
             case 11:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
                     n.shooter.setVelocity(750);
+                    n.shooter2.setVelocity(750);
                     ShootingStare = 12;
                 }
                 break;
@@ -620,6 +625,7 @@ public class FirstAutoV2 extends OpMode {
         RobotPozitie.heading = currentPose.getHeading();
 
         n.shooter.setVelocity(0);
+        n.shooter2.setVelocity(0);
         n.intake.setPower(0);
     }
 }*/

@@ -51,11 +51,15 @@ public class TelR extends OpMode {
 
     private void applyVoltageCompensatedPIDF() {
         double currentVoltage = m.voltageSensor.getVoltage();
-        currentVoltage = Math.max(10.0, Math.min(14.0, currentVoltage));
+        currentVoltage = Math.max(9.0, Math.min(14.0, currentVoltage));
         double voltageCompensation = voltajeNominale / currentVoltage;
         double compensatedF = m.SkF * voltageCompensation;
         PIDFCoefficients compensatedPID = new PIDFCoefficients(m.SkP, m.SkI, m.SkD, compensatedF);
+//        PIDFCoefficients compensatedPIDS = new PIDFCoefficients(m.SkPS, m.SkIS, m.SkDS, compensatedF);
         m.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
+//        m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPIDF);
+
+        m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
     }
 
     @Override
@@ -78,8 +82,6 @@ public class TelR extends OpMode {
         frontRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-
-//        m.turela.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         follower = Constants.createFollower(hardwareMap);
 
@@ -160,6 +162,7 @@ public class TelR extends OpMode {
 
                 if(gamepad2.touchpad){
                     m.shooter.setVelocity(0);
+                    m.shooter2.setVelocity(0);
                 }
             }
         }
@@ -352,6 +355,7 @@ public class TelR extends OpMode {
                         if (gamepad2.x) targetShooterVelocity = 1650;
                         else if (gamepad2.y) targetShooterVelocity = 2000;
                         m.shooter.setVelocity(targetShooterVelocity);
+                        m.shooter2.setVelocity(targetShooterVelocity);
 
                         asteaptaVelocity();
 
@@ -365,6 +369,7 @@ public class TelR extends OpMode {
                         m.sortare.setPosition(Pozitii.luarea1);
                         m.kdf(150);
                         m.shooter.setVelocity(950);
+                        m.shooter2.setVelocity(950);
                         trageShooting = false;
                     }
                 }
