@@ -28,12 +28,12 @@ public class RosuAuto extends OpMode {
     private static final double TARGET_Y = 144;
 
     private final Pose startPose = new Pose(120.35855054036871, 127.40143772311603, Math.toRadians(37));
-    private final Pose tragere1 = new Pose(80.16783216783216, 96.5874125874126, Math.toRadians(0));
-    private final Pose aluat1 = new Pose(120.51322803071056, 89.17702577143136, Math.toRadians(0));
+    private final Pose tragere1 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose aluat1 = new Pose(120.51322803071056, 88.17702577143136, Math.toRadians(0));
     private final Pose ARatat1 = new Pose(80.55254387312878, 67.32287653839902, Math.toRadians(0));
     private final Pose tras1 = new Pose(80.16783216783216, 96.5874125874126, Math.toRadians(0));
     private final Pose aduna2 = new Pose(72.35664335664335, 55.374125874125866, Math.toRadians(0));
-    private final Pose aluat2 = new Pose(125.8479143234388,59.70247933884299, Math.toRadians(0));
+    private final Pose aluat2 = new Pose(125.8479143234388,58.70247933884299, Math.toRadians(0));
     private final Pose ARatat2 = new Pose(78.26223776223776, 48.31818181818181, Math.toRadians(0));
     private final Pose tras2 = new Pose(80.16783216783216, 96.5874125874126, Math.toRadians(0));
     private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
@@ -46,7 +46,7 @@ public class RosuAuto extends OpMode {
     private PathChain collectare1, Miss1, trasUnu, collectare2, Miss2, trasDoi, collectare3, trasTrei,returnarea;
 
     private boolean TragereInProgres = false;
-    private int ballsToShoot = 0;
+    private int ballshoot = 0;
     private int ShootingStare = 0;
     private boolean shooterPreparado = false;
 
@@ -133,7 +133,9 @@ public class RosuAuto extends OpMode {
     private void TragereLaPupitru() {
         switch (ShootingStare) {
             case 0:
-                ballsToShoot = getLoculete();
+                // 3 bile fara verificare
+                ballshoot = 3;
+                currentShootSlot = 2;
                 if (!shooterPreparado) {
                     PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
                     n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
@@ -145,7 +147,6 @@ public class RosuAuto extends OpMode {
                     actionTimer.resetTimer();
                     ShootingStare = 1;
                 } else {
-                    currentShootSlot = 2;
                     actionTimer.resetTimer();
                     ShootingStare = 13;
                 }
@@ -155,21 +156,15 @@ public class RosuAuto extends OpMode {
             case 1:
                 track();
                 if (actionTimer.getElapsedTimeSeconds() >= 0.35) {
-                    currentShootSlot = 2;
                     actionTimer.resetTimer();
                     ShootingStare = 13;
                 }
                 break;
 
-            case 13:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 0.45) {
-                    ShootingStare = 2;
-                }
-                break;
 
             case 2:
-                if (ballsToShoot > 0 && currentShootSlot >= 0) {
+                // 3 sloturile fara verificare
+                if (currentShootSlot >= 0) {
                     ShootingStare = 3;
                 } else {
                     ShootingStare = 10;
@@ -219,7 +214,6 @@ public class RosuAuto extends OpMode {
                 if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
                     slotOcupat[currentShootSlot] = false;
                     currentShootSlot--;
-                    ballsToShoot--;
                     ShootingStare = 2;
                 }
                 break;
@@ -246,12 +240,17 @@ public class RosuAuto extends OpMode {
                 shooterPreparado = false;
                 ShootingStare = 0;
                 break;
+            case 13:
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 0.45) {
+                    ShootingStare = 2;
+                }
+                break;
         }
     }
 
     private volatile boolean intakePornit = false;
     private volatile boolean stop = false;
-    private volatile boolean ballDetected = false;
     private Thread IntakeThread;
 
     private void Intake() {
@@ -317,6 +316,8 @@ public class RosuAuto extends OpMode {
         switch (pathState) {
             case 0:
                 follower.followPath(scorePreload);
+                pregatireShooter();
+
                 setPathState(1);
                 break;
 
@@ -339,11 +340,187 @@ public class RosuAuto extends OpMode {
 
                 if (!TragereInProgres) {
                     actionTimer.resetTimer();
-                    setPathState(25);
+                    setPathState(22);
+                }
+                break;
+            case 3:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat1);
+                    actionTimer.resetTimer();
+                    setPathState(4);
                 }
                 break;
 
-            case 25:
+            case 4:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(23);
+                    } else {
+                        setPathState(5);
+                    }
+                }
+                break;
+
+            case 5:
+                intakePornit = false;
+                pregatireShooter();
+                follower.followPath(trasUnu);
+                setPathState(6);
+                break;
+
+            case 6:
+                track();
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras1);
+                    setPathState(7);
+                }
+                break;
+
+            case 7:
+                track();
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(8);
+                }
+                break;
+
+            case 8:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare2,0.75,false);
+                setPathState(9);
+                break;
+
+            case 9:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat2);
+                    actionTimer.resetTimer();
+                    setPathState(10);
+                }
+                break;
+
+            case 10:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(60);
+                    } else {
+                        setPathState(11);
+                    }
+                }
+                break;
+
+            case 11:
+                intakePornit = false;
+                pregatireShooter();
+                follower.followPath(trasDoi);
+                setPathState(12);
+                break;
+
+            case 12:
+                track();
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras2);
+                    setPathState(13);
+                }
+                break;
+
+            case 13:
+                track();
+
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(14);
+                }
+                break;
+
+            case 14:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare3,0.70,false);
+                setPathState(15);
+                break;
+
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(16);
+                }
+                break;
+
+            case 16:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(21);
+                    } else {
+                        setPathState(17);
+                    }
+                }
+                break;
+
+            case 17:
+                intakePornit = false;
+                pregatireShooter();
+                follower.followPath(trasTrei);
+                setPathState(18);
+                break;
+
+            case 18:
+                track();
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras3);
+                    setPathState(19);
+                }
+                break;
+
+            case 19:
+                track();
+
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(20);
+                }
+                break;
+
+            case 20:
+                follower.followPath(returnarea);
+                setPathState(21);
+                break;
+
+            case 21:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(returnToBase);
+                    setPathState(-1);
+                }
+                break;
+
+            case 22:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
                     slotOcupat[0] = false;
                     slotOcupat[1] = false;
@@ -352,235 +529,59 @@ public class RosuAuto extends OpMode {
                     intakePornit = true;
                     follower.followPath(collectare1,0.75,false);
 
-                    setPathState(4);
+                    setPathState(3);
                 }
                 break;
 
-            case 4:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat1);
-                    actionTimer.resetTimer();
-                    setPathState(5);
-                }
-                break;
 
-            case 5:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(50);
-                    } else {
-                        setPathState(6);
-                    }
-                }
-                break;
-
-            case 6:
-                intakePornit = false;
-                pregatireShooter();
-                follower.followPath(trasUnu);
-                setPathState(7);
-                break;
-
-            case 7:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras1);
-                    setPathState(8);
-                }
-                break;
-
-            case 8:
-                track();
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
-                }
-                TragereLaPupitru();
-
-                if (!TragereInProgres) {
-                    setPathState(9);
-                }
-                break;
-
-            case 9:
-                slotOcupat[0] = false;
-                slotOcupat[1] = false;
-                slotOcupat[2] = false;
-                n.sortare.setPosition(Pozitii.luarea1);
-                intakePornit = true;
-                follower.followPath(collectare2,0.75,false);
-                setPathState(10);
-                break;
-
-            case 10:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat2);
-                    actionTimer.resetTimer();
-                    setPathState(11);
-                }
-                break;
-
-            case 11:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(60);
-                    } else {
-                        setPathState(12);
-                    }
-                }
-                break;
-
-            case 12:
-                intakePornit = false;
-                pregatireShooter();
-                follower.followPath(trasDoi);
-                setPathState(13);
-                break;
-
-            case 13:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras2);
-                    setPathState(14);
-                }
-                break;
-
-            case 14:
-                track();
-
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
-                }
-
-                TragereLaPupitru();
-
-                if (!TragereInProgres) {
-                    setPathState(15);
-                }
-                break;
-
-            case 15:
-                slotOcupat[0] = false;
-                slotOcupat[1] = false;
-                slotOcupat[2] = false;
-                n.sortare.setPosition(Pozitii.luarea1);
-                intakePornit = true;
-                follower.followPath(collectare3,0.70,false);
-                setPathState(16);
-                break;
-
-            case 16:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat3);
-                    actionTimer.resetTimer();
-                    setPathState(17);
-                }
-                break;
-
-            case 17:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(21);
-                    } else {
-                        setPathState(18);
-                    }
-                }
-                break;
-
-            case 18:
-                intakePornit = false;
-                pregatireShooter();
-                follower.followPath(trasTrei);
-                setPathState(19);
-                break;
-
-            case 19:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras3);
-                    setPathState(20);
-                }
-                break;
-
-            case 20:
-                track();
-
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
-                }
-
-                TragereLaPupitru();
-
-                if (!TragereInProgres) {
-                    setPathState(21);
-                }
-                break;
-
-            case 21:
-                follower.followPath(returnarea);
-                setPathState(22);
-                break;
-
-            case 22:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(returnToBase);
-                    setPathState(-1);
-                }
-                break;
-
-            case 50:
+            case 23:
                 slotOcupat[0] = false;
                 slotOcupat[1] = false;
                 slotOcupat[2] = false;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
                 follower.followPath(Miss1);
-                setPathState(52);
+                setPathState(24);
                 break;
 
-            case 52:
+            case 24:
                 if (!follower.isBusy()) {
                     follower.holdPoint(aluat2);
                     actionTimer.resetTimer();
-                    setPathState(53);
+                    setPathState(25);
                 }
                 break;
 
-            case 53:
+            case 25:
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
                     intakePornit = false;
                     if (getLoculete() == 0) {
-                        setPathState(60);
+                        setPathState(26);
                     } else {
                         setPathState(12);
                     }
                 }
                 break;
 
-            case 60:
+            case 26:
                 slotOcupat[0] = false;
                 slotOcupat[1] = false;
                 slotOcupat[2] = false;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
                 follower.followPath(Miss2);
-                setPathState(62);
+                setPathState(27);
                 break;
 
-            case 62:
+            case 27:
                 if (!follower.isBusy()) {
                     follower.holdPoint(aluat3);
                     actionTimer.resetTimer();
-                    setPathState(63);
+                    setPathState(28);
                 }
                 break;
 
-            case 63:
+            case 28:
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
                     intakePornit = false;
                     if (getLoculete() == 0) {

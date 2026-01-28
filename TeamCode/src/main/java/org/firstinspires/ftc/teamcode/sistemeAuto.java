@@ -240,6 +240,15 @@ public class sistemeAuto {
         return CULOARE_NIMIC;
     }
 
+    public boolean bilaPrezenta(double distantaCM) {
+        if (distantaCM < 18.67) return true;
+        if (distantaCM < 27) {
+            int culoare = detecteazaBiloocaInstant();
+            return culoare != CULOARE_NIMIC;
+        }
+        return false;
+    }
+
     public void resetareDetection() {
         lastDetectedColor = CULOARE_NIMIC;
         lastDetectionTime = 0;

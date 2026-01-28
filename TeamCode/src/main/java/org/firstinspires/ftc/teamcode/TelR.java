@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp(name = "Main Rosu")
@@ -43,6 +44,35 @@ public class TelR extends OpMode {
             if (occupied) count++;
         }
         return count;
+    }
+
+    private int primaBilaPattern() {
+        if (idTag == 23) return 1;
+        else if (idTag == 22) return 1;
+        else if (idTag == 21) return 0;
+        return -1;
+    }
+
+    private int BilaCuCuloare(int color) {
+        if (color == -1) {
+            for (int i = 0; i < 3; i++) {
+                if (slotOcupat[i]) return i;
+            }
+            return -1;
+        }
+        for (int i = 0; i < 3; i++) {
+            if (slotOcupat[i] && slotColor[i] == color) return i;
+        }
+        for (int i = 0; i < 3; i++) {
+            if (slotOcupat[i]) return i;
+        }
+        return -1;
+    }
+
+    private double getAruncarePos(int slot) {
+        if (slot == 0) return Pozitii.aruncare1;
+        if (slot == 1) return Pozitii.aruncare2;
+        return Pozitii.aruncare3;
     }
 
     private volatile boolean sugere = false;
@@ -93,6 +123,7 @@ public class TelR extends OpMode {
     }
 
     public void start() {
+        follower.update();
         Chassis.start();
         Butoane.start();
         Turela.start();
@@ -106,6 +137,15 @@ public class TelR extends OpMode {
             while (!stop) {
                 posU = m.unghiS.getPosition();
 
+                if(gamepad1.dpad_right){
+                    ShooterVelocity = 2000;
+                    posU= 0.4617;
+                }
+                if(gamepad1.dpad_left){
+                    ShooterVelocity = 1650;
+                    posU = 0.3444;
+                }
+
                 // Turela toggle
                 boolean dpad_right1 = gamepad2.right_bumper;
                 if (turelaTracking != dpad_right1) {
@@ -115,6 +155,8 @@ public class TelR extends OpMode {
                     turelaTracking = dpad_right1;
                 }
 
+
+
                 if (gamepad1.dpad_up) {
                     posU += 0.003;
                 }
@@ -123,13 +165,13 @@ public class TelR extends OpMode {
                 }
                 m.unghiD.setPosition(posU);
                 m.unghiS.setPosition(posU);
-                if(gamepad2.dpad_left){
+                if(gamepad2.b){
                     idTag=21;
                 }
                 if(gamepad2.dpad_up){
                     idTag=22;
                 }
-                if(gamepad2.b){
+                if(gamepad2.dpad_right){
                     idTag=23;
                 }
                 boolean gamepad1_touch = gamepad1.touchpad;
@@ -154,10 +196,37 @@ public class TelR extends OpMode {
                 boolean gamepad2_a = gamepad2.a;
                 if (SortingToggle != gamepad2_a) {
                     if (gamepad2.a) {
-                        SortingPornit = !SortingPornit;
+                        SortingPornit = true;
                         gamepad2.rumble(500);
                     }
                     SortingToggle = gamepad2_a;
+                }
+
+                if (gamepad2.left_bumper && !sugere && !trageShooting) {
+                    double lastPos = m.sortare.getPosition();
+                    for (int i = 0; i < 3; i++) {
+                        if (slotOcupat[i]) {
+                            double targetPos;
+                            if (i == 0) targetPos = Pozitii.luarea1;
+                            else if (i == 1) targetPos = Pozitii.luarea2;
+                            else targetPos = Pozitii.luarea3;
+
+                            m.sortare.setPosition(targetPos);
+                            double dist = Math.abs(targetPos - lastPos);
+                            int moveWait = (int)(dist * 550) + 150;
+                            m.kdf(moveWait);
+
+                            m.resetareDetection();
+                            slotColor[i] = m.detecteazaBiloaca();
+                            lastPos = targetPos;
+
+                            if (slotColor[i] != -1) {
+                                gamepad2.rumble(150);
+                            }
+                        }
+                    }
+                    m.sortare.setPosition(Pozitii.luarea1);
+                    gamepad2.rumble(300);
                 }
 
                 if(gamepad2.touchpad){
@@ -296,7 +365,7 @@ public class TelR extends OpMode {
 
                         ledistante = m.distanta.getDistance(DistanceUnit.CM);
 
-                        if (ledistante < 20 ) {
+                        if (m.bilaPrezenta(ledistante)) {
                             int detectedColor = m.detecteazaBiloaca();
                             double servoPos = m.sortare.getPosition();
                             if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
@@ -307,7 +376,7 @@ public class TelR extends OpMode {
                                 } else if (!slotOcupat[2]) {
                                     m.sortare.setPosition(Pozitii.luarea3);
                                 }
-                                m.kdf(800);
+                                m.kdf(350);
                             } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
                                 slotOcupat[1] = true;
                                 slotColor[1] = detectedColor;
@@ -316,12 +385,30 @@ public class TelR extends OpMode {
                                 } else if (!slotOcupat[0]) {
                                     m.sortare.setPosition(Pozitii.luarea1);
                                 }
-                                m.kdf(800);
+                                gamepad1.rumble(2000);
+                                m.kdf(350);
                             } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
                                 slotOcupat[2] = true;
                                 slotColor[2] = detectedColor;
-                                m.kdf(800);
-                                gamepad1.rumble(2000);
+                                m.kdf(350);
+                            }
+
+                            if (getLoculete() == 3) {
+                                Ipornit = false;
+                                m.intake.setPower(0);
+                                gamepad1.rumble(500);
+
+                                if (SortingPornit) {
+                                    int primaCuloare = primaBilaPattern();
+                                    int slotShoot = BilaCuCuloare(primaCuloare);
+                                    if (slotShoot != -1) {
+                                        m.sortare.setPosition(getAruncarePos(slotShoot));
+                                    } else {
+                                        m.sortare.setPosition(Pozitii.aruncare1);
+                                    }
+                                } else {
+                                    m.sortare.setPosition(Pozitii.aruncare1);
+                                }
                             }
                         }
                     } else if(gamepad1.b){
@@ -338,7 +425,7 @@ public class TelR extends OpMode {
     });
 
     private int[] cPattern = new int[3];
-    private double targetShooterVelocity = 1650;
+    private double ShooterVelocity = 1650;
 
     private final Thread Shooter = new Thread(new Runnable() {
         @Override
@@ -347,30 +434,24 @@ public class TelR extends OpMode {
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
+                    m.shooter.setVelocity(ShooterVelocity);
+                    m.shooter2.setVelocity(ShooterVelocity);
+
                     if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
                         applyVoltageCompensatedPIDF();
 
-                        targetShooterVelocity = 1650;
-                        if (gamepad2.x) targetShooterVelocity = 1650;
-                        else if (gamepad2.y) targetShooterVelocity = 2000;
-                        m.shooter.setVelocity(targetShooterVelocity);
-                        m.shooter2.setVelocity(targetShooterVelocity);
-
-                        asteaptaVelocity();
-
                         if (SortingPornit) {
                             Pattern();
                             shootPattern();
+                            SortingPornit = false;
                         } else {
                             rapidFireShoot();
                         }
 
                         m.sortare.setPosition(Pozitii.luarea1);
-                        m.kdf(150);
-                        m.shooter.setVelocity(950);
-                        m.shooter2.setVelocity(950);
                         trageShooting = false;
+                        Ipornit = true;
                     }
                 }
             }
@@ -401,10 +482,13 @@ public class TelR extends OpMode {
                 m.sortare.setPosition(target);
 
                 double dist = Math.abs(target - lastPos);
-                int moveWait = (int)(dist * 550) + 100;
+                int moveWait = (int)(dist * 400) + 100;
                 m.kdf(moveWait);
 
-                shootBall();
+                m.Saruncare.setPosition(Pozitii.lansare);
+                m.kdf(130);
+                m.Saruncare.setPosition(Pozitii.coborare);
+                m.kdf(90);
 
                 slotOcupat[slotToShoot] = false;
                 slotColor[slotToShoot] = -1;
@@ -435,16 +519,19 @@ public class TelR extends OpMode {
         private void rapidFireShoot() {
             double lastPos = m.sortare.getPosition();
 
-            for (int i = 2; i >= 0; i--) {
+            for (int i = 0; i < 3; i++) {
                 if (slotOcupat[i]) {
                     double target = getTarget(i);
                     m.sortare.setPosition(target);
 
                     double dist = Math.abs(target - lastPos);
-                    int moveWait = (int)(dist * 550) + 100;
+                    int moveWait = (int)(dist * 400) + 100;
                     m.kdf(moveWait);
 
-                    shootBall();
+                    m.Saruncare.setPosition(Pozitii.lansare);
+                    m.kdf(130);
+                    m.Saruncare.setPosition(Pozitii.coborare);
+                    m.kdf(90);
 
                     slotOcupat[i] = false;
                     slotColor[i] = -1;
@@ -457,35 +544,6 @@ public class TelR extends OpMode {
             if (slot == 0) return Pozitii.aruncare1;
             if (slot == 1) return Pozitii.aruncare2;
             return Pozitii.aruncare3;
-        }
-
-        private void shootBall() {
-            asteaptaVelocity();
-            m.Saruncare.setPosition(Pozitii.lansare);
-            m.kdf(120);
-            m.Saruncare.setPosition(Pozitii.coborare);
-            m.kdf(100);
-        }
-
-        private void asteaptaVelocity() {
-            double tolerance = targetShooterVelocity * 0.05;
-            int stableCount = 0;
-            int maxWait = 40;
-            int waited = 0;
-
-            while (stableCount < 2 && waited < maxWait) {
-                double current = m.shooter.getVelocity();
-                double error = Math.abs(current - targetShooterVelocity);
-
-                if (error <= tolerance) {
-                    stableCount++;
-                } else {
-                    stableCount = 0;
-                }
-
-                m.kdf(8);
-                waited++;
-            }
         }
     });
     private final Thread Chassis = new Thread(new Runnable() {
@@ -532,14 +590,48 @@ public class TelR extends OpMode {
 
     @Override
     public void loop() {
+        int detected = m.detecteazaBiloaca();
+
+        String colorN;
+        if (detected == 0) {
+            colorN = "verde";
+        } else if (detected == 1) {
+            colorN = "mov";
+        } else {
+            colorN = "pulicioi nu ii nimic";
+        }
+        telemetry.addData("detectat", colorN);
+        telemetry.addLine("");
+
+        for (int i = 0; i < 3; i++) {
+            String status;
+            if (!slotOcupat[i]) {
+                status = "cheala ca Miklos";
+            } else if (slotColor[i] == 0) {
+                status = "verde";
+            } else if (slotColor[i] == 1) {
+                status = "mov";
+            } else {
+                status = "?";
+            }
+            telemetry.addData("Slot " + (i + 1), status);
+        }
+        telemetry.addData("id",idTag);
+        telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("shooter2", m.shooter2.getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("Total biloace", getLoculete());
+        telemetry.addData("turela", m.turelaD.getPosition());
+        telemetry.addData("unghi", posU);
+        telemetry.addData("distanta", detected);
+        telemetry.addData("targetVelocity", ShooterVelocity);
         telemetry.update();
     }
 
     public void POWER(double fr1, double bl1, double br1, double fl1) {
         frontRight.setPower(fr1);
         backLeft.setPower(bl1);
-        frontLeft.setPower(fl1);
         backRight.setPower(br1);
+        frontLeft.setPower(fl1);
     }
     private double normalizeAngle(double angle) {
         while (angle > Math.PI) angle -= 2 * Math.PI;

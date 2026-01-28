@@ -24,7 +24,6 @@ public class sistemeTeleOp {
     public NormalizedColorSensor colorv2;
 
     public final double SkP = 80, SkI = 0.050, SkF = 15.50, SkD = 5;
-    public final double SkPS = 70, SkIS = 0.050, SkFS = 13.50, SkDS = 5;
 
     public static final int CULOARE_VERDE = 0;
     public static final int CULOARE_MOV = 1;
@@ -37,7 +36,6 @@ public class sistemeTeleOp {
     private static final int MIN_VOTES = 2;
     private int lastDetectedColor = CULOARE_NIMIC;
     private long lastDetectionTime = 0;
-    private static final long DETECTION_CACHE_MS = 50;
 
     public void initsisteme(HardwareMap hard) {
 
@@ -72,12 +70,13 @@ public class sistemeTeleOp {
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
         unghiS = ServoImplExEx.get(hard, "unghiS");
-        unghiS.setPosition(0.3071);
-        unghiD.setPosition(0.3071);
+        unghiS.setPosition(0.3444);
+        unghiD.setPosition(0.3444);
         unghiD.setMinPosition(0.1485);
         unghiS.setMinPosition(0.1485);
         unghiS.setMaxPosition(0.4829);
         unghiD.setMaxPosition(0.4829);
+
 
         distanta = hard.get(DistanceSensor.class, "distanta");
 
@@ -113,7 +112,7 @@ public class sistemeTeleOp {
     }
     public int detecteazaBiloaca() {
         long now = System.currentTimeMillis();
-        if (lastDetectedColor != CULOARE_NIMIC && (now - lastDetectionTime) < DETECTION_CACHE_MS) {
+        if (lastDetectedColor != CULOARE_NIMIC && (now - lastDetectionTime) < 50) {
             return lastDetectedColor;
         }
 
@@ -197,6 +196,17 @@ public class sistemeTeleOp {
         }
 
         return CULOARE_NIMIC;
+    }
+
+    public boolean bilaPrezenta(double distantaCM) {
+        if (distantaCM < 18.67) return true;
+
+        if (distantaCM < 27) {
+            int culoare = detecteazaBiloocaInstant();
+            return culoare != CULOARE_NIMIC;
+        }
+
+        return false;
     }
 
     public void resetareDetection() {

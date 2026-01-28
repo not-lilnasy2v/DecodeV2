@@ -4,7 +4,7 @@ public class Pozitii {
 
     /// Sortarea
     public static final double luarea1 = 0.2465 ;
-    public static final double luarea2 = 0.615;
+    public static final double luarea2 = 0.615;//
     public static final double luarea3 = 0.9725;
     public static final double aruncare1 = 0.806;
     public static final double aruncare2 = 0.0545;

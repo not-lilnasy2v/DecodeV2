@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode;
 
-import static java.lang.Math.PI;
 import static java.lang.Math.abs;
 import static java.lang.Math.addExact;
 
@@ -13,6 +12,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -46,6 +46,36 @@ public class Tel extends OpMode {
         }
         return count;
     }
+
+    private int primaBilaPattern() {
+        if (idTag == 23) return 1;
+        else if (idTag == 22) return 1;
+        else if (idTag == 21) return 0;
+        return -1;
+    }
+
+    private int BilaCuCuloare(int color) {
+        if (color == -1) {
+            for (int i = 0; i < 3; i++) {
+                if (slotOcupat[i]) return i;
+            }
+            return -1;
+        }
+        for (int i = 0; i < 3; i++) {
+            if (slotOcupat[i] && slotColor[i] == color) return i;
+        }
+        for (int i = 0; i < 3; i++) {
+            if (slotOcupat[i]) return i;
+        }
+        return -1;
+    }
+
+    private double getAruncarePos(int slot) {
+        if (slot == 0) return Pozitii.aruncare1;
+        if (slot == 1) return Pozitii.aruncare2;
+        return Pozitii.aruncare3;
+    }
+
     private volatile boolean sugere = false;
     private volatile boolean trageShooting = false;
     private final Object blocat = new Object();
@@ -89,7 +119,6 @@ public class Tel extends OpMode {
         Pose startingPose = new Pose(RobotPozitie.X,RobotPozitie.Y,RobotPozitie.heading);
         follower.setStartingPose(startingPose);
         follower.update();
-
         applyVoltageCompensatedPIDF();
     }
 
@@ -124,6 +153,13 @@ public class Tel extends OpMode {
                     Touch = gamepad1_touch;
                 }
 
+                if(gamepad1.dpad_right){
+                    targetShooterVelocity = 2000;
+                }
+                if(gamepad1.dpad_left){
+                    targetShooterVelocity = 1650;
+                }
+
                 if (gamepad1.dpad_up) {
                     posU += 0.003;
                 }
@@ -132,7 +168,8 @@ public class Tel extends OpMode {
                 }
                 m.unghiD.setPosition(posU);
                 m.unghiS.setPosition(posU);
-                if(gamepad2.dpad_left){
+                if(gamepad2.b){
+
                     idTag=21;
                 }
                 if(gamepad2.dpad_up){
@@ -157,11 +194,39 @@ public class Tel extends OpMode {
                 boolean gamepad2_a = gamepad2.a;
                 if (SortingToggle != gamepad2_a) {
                     if (gamepad2.a) {
-                        SortingPornit = !SortingPornit;
+                        SortingPornit = true;
                         gamepad2.rumble(500);
                     }
                     SortingToggle = gamepad2_a;
                 }
+
+                if (gamepad2.left_bumper && !sugere && !trageShooting) {
+                    double lastPos = m.sortare.getPosition();
+                    for (int i = 0; i < 3; i++) {
+                        if (slotOcupat[i]) {
+                            double targetPos;
+                            if (i == 0) targetPos = Pozitii.luarea1;
+                            else if (i == 1) targetPos = Pozitii.luarea2;
+                            else targetPos = Pozitii.luarea3;
+
+                            m.sortare.setPosition(targetPos);
+                            double dist = Math.abs(targetPos - lastPos);
+                            int moveWait = (int)(dist * 550) + 150;
+                            m.kdf(moveWait);
+
+                            m.resetareDetection();
+                            slotColor[i] = m.detecteazaBiloaca();
+                            lastPos = targetPos;
+
+                            if (slotColor[i] != -1) {
+                                gamepad2.rumble(150);
+                            }
+                        }
+                    }
+                    m.sortare.setPosition(Pozitii.luarea1);
+                    gamepad2.rumble(300);
+                }
+
                 if(gamepad2.touchpad){
                     m.shooter.setVelocity(0);
                     m.shooter2.setVelocity(0);
@@ -225,14 +290,14 @@ public class Tel extends OpMode {
             while (!stop) {
                 synchronized (blocat) {
                     int loculete = getLoculete();
+                    distantare = m.distanta.getDistance(DistanceUnit.CM);
 
                     if (Ipornit && !trageShooting && loculete < 3 && !gamepad1.b) {
                         sugere = true;
                         m.intake.setPower(1);
 
-                        distantare = m.distanta.getDistance(DistanceUnit.CM);
 
-                        if (distantare < 20 ) {
+                        if (m.bilaPrezenta(distantare)) {
                             int detectedColor = m.detecteazaBiloaca();
                             double servoPos = m.sortare.getPosition();
                             if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
@@ -243,7 +308,7 @@ public class Tel extends OpMode {
                                 } else if (!slotOcupat[2]) {
                                     m.sortare.setPosition(Pozitii.luarea3);
                                 }
-                                m.kdf(800);
+                                m.kdf(350);
                             } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
                                 slotOcupat[1] = true;
                                 slotColor[1] = detectedColor;
@@ -252,12 +317,30 @@ public class Tel extends OpMode {
                                 } else if (!slotOcupat[0]) {
                                     m.sortare.setPosition(Pozitii.luarea1);
                                 }
-                                m.kdf(800);
+                                gamepad1.rumble(2000);
+                                m.kdf(350);
                             } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
                                 slotOcupat[2] = true;
                                 slotColor[2] = detectedColor;
-                                m.kdf(800);
-                                gamepad1.rumble(2000);
+                                m.kdf(350);
+                            }
+
+                            if (getLoculete() == 3) {
+                                Ipornit = false;
+                                m.intake.setPower(0);
+                                gamepad1.rumble(500);
+
+                                if (SortingPornit) {
+                                    int primaColoare = primaBilaPattern();
+                                    int slotShoot = BilaCuCuloare(primaColoare);
+                                    if (slotShoot != -1) {
+                                        m.sortare.setPosition(getAruncarePos(slotShoot));
+                                    } else {
+                                        m.sortare.setPosition(Pozitii.aruncare1);
+                                    }
+                                } else {
+                                    m.sortare.setPosition(Pozitii.aruncare1);
+                                }
                             }
                         }
                     } else if(gamepad1.b){
@@ -283,29 +366,24 @@ public class Tel extends OpMode {
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
+                    m.shooter.setVelocity(targetShooterVelocity);
+                    m.shooter2.setVelocity(targetShooterVelocity);
+
                     if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
                         applyVoltageCompensatedPIDF();
-                        targetShooterVelocity = 2000;
-                        if (gamepad2.x) targetShooterVelocity = 1650;
-                        else if (gamepad2.y) targetShooterVelocity = 2000;
-                        m.shooter.setVelocity(targetShooterVelocity);
-                        m.shooter2.setVelocity(targetShooterVelocity);
-
-                        asteaptaVelocity();
 
                         if (SortingPornit) {
                             Pattern();
                             shootPattern();
+                            SortingPornit = false;
                         } else {
                             rapidFireShoot();
                         }
 
                         m.sortare.setPosition(Pozitii.luarea1);
-                        m.kdf(150);
-                        m.shooter.setVelocity(950);
-                        m.shooter2.setVelocity(950);
                         trageShooting = false;
+                        Ipornit = true;
                     }
                 }
             }
@@ -327,27 +405,30 @@ public class Tel extends OpMode {
             double lastPos = m.sortare.getPosition();
 
             for (int step = 0; step < 3; step++) {
-                int need = slotColor[step];
-                int slotToShoot = BallPattern(need);
+                int need = cPattern[step];
+                int slotShoot = GasestePattern(need);
 
-                if (slotToShoot == -1) break;
+                if (slotShoot == -1) break;
 
-                double target = getTarget(slotToShoot);
+                double target = getTarget(slotShoot);
                 m.sortare.setPosition(target);
 
                 double dist = Math.abs(target - lastPos);
-                int moveWait = (int)(dist * 550) + 100;
+                int moveWait = (int)(dist * 400) + 100;
                 m.kdf(moveWait);
 
-                shootBall();
+                m.Saruncare.setPosition(Pozitii.lansare);
+                m.kdf(130);
+                m.Saruncare.setPosition(Pozitii.coborare);
+                m.kdf(90);
 
-                slotOcupat[slotToShoot] = false;
-                slotColor[slotToShoot] = -1;
+                slotOcupat[slotShoot] = false;
+                slotColor[slotShoot] = -1;
                 lastPos = target;
             }
         }
 
-        private int BallPattern(int needColor) {
+        private int GasestePattern(int needColor) {
             if (needColor == -1) {
                 for (int i = 0; i < 3; i++) {
                     if (slotOcupat[i]) return i;
@@ -370,16 +451,19 @@ public class Tel extends OpMode {
         private void rapidFireShoot() {
             double lastPos = m.sortare.getPosition();
 
-            for (int i = 2; i >= 0; i--) {
+            for (int i = 0; i < 3; i++) {
                 if (slotOcupat[i]) {
                     double target = getTarget(i);
                     m.sortare.setPosition(target);
 
                     double dist = Math.abs(target - lastPos);
-                    int moveWait = (int)(dist * 550) + 100;
+                    int moveWait = (int)(dist * 400) + 100;
                     m.kdf(moveWait);
 
-                    shootBall();
+                    m.Saruncare.setPosition(Pozitii.lansare);
+                    m.kdf(130);
+                    m.Saruncare.setPosition(Pozitii.coborare);
+                    m.kdf(90);
 
                     slotOcupat[i] = false;
                     slotColor[i] = -1;
@@ -393,35 +477,6 @@ public class Tel extends OpMode {
             if (slot == 1) return Pozitii.aruncare2;
             return Pozitii.aruncare3;
         }
-
-        private void shootBall() {
-            asteaptaVelocity();
-            m.Saruncare.setPosition(Pozitii.lansare);
-            m.kdf(120);
-            m.Saruncare.setPosition(Pozitii.coborare);
-            m.kdf(100);
-        }
-
-        private void asteaptaVelocity() {
-            double tolerance = targetShooterVelocity * 0.05;
-            int stableCount = 0;
-            int maxWait = 40;
-            int waited = 0;
-
-            while (stableCount < 2 && waited < maxWait) {
-                double current = m.shooter.getVelocity();
-                double error = Math.abs(current - targetShooterVelocity);
-
-                if (error <= tolerance) {
-                    stableCount++;
-                } else {
-                    stableCount = 0;
-                }
-
-                m.kdf(8);
-                waited++;
-            }
-        }
     });
 
     private final Thread Chassis = new Thread(new Runnable() {
@@ -429,35 +484,40 @@ public class Tel extends OpMode {
         public void run() {
             while (!stop) {
                 double y = -gamepad1.left_stick_y;
-                double x = gamepad1.left_stick_x * 1.1;
+                double x = gamepad1.left_stick_x;
                 double rx = gamepad1.right_stick_x;
 
-                FL = y + x + rx;
-                BL = y - x + rx;
-                FR = y - x - rx;
-                BR = y + x - rx;
+                FL = (y + x + rx);
+                BL = (y - x + rx);
+                BR = (y + x - rx);
+                FR = (y - x - rx);
 
                 max = abs(FL);
-                if (abs(FR) > max) max = abs(FR);
-                if (abs(BL) > max) max = abs(BL);
-                if (abs(BR) > max) max = abs(BR);
-
+                if (abs(FR) > max) {
+                    max = abs(FR);
+                }
+                if (abs(BL) > max) {
+                    max = abs(BL);
+                }
+                if (abs(BR) > max) {
+                    max = abs(BR);
+                }
                 if (max > 1) {
                     FL /= max;
                     FR /= max;
                     BL /= max;
                     BR /= max;
                 }
-
                 if (gamepad1.right_trigger > 0) {
                     sm = 2;
-                } else if (gamepad1.left_trigger > 0) {
-                    sm = 5;
                 } else {
-                    sm = 1;
+                    if (gamepad1.left_trigger > 0) {
+                        sm = 5;
+                    } else {
+                        sm = 1;
+                    }
                 }
-
-                POWER(FR / sm, BL / sm, BR / sm, FL / sm);
+                POWER(FR / sm, FL / sm, BR / sm, BL / sm);
 
             }
         }
@@ -495,17 +555,21 @@ public class Tel extends OpMode {
             }
             telemetry.addData("Slot " + (i + 1), status);
         }
+        telemetry.addData("id",idTag);
+        telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("shooter2", m.shooter2.getCurrent(CurrentUnit.AMPS));
         telemetry.addData("Total biloace", getLoculete());
         telemetry.addData("turela", m.turelaD.getPosition());
         telemetry.addData("unghi", posU);
         telemetry.addData("distanta", distantare);
+        telemetry.addData("targetVelocity", targetShooterVelocity);
         telemetry.update();
     }
-    public void POWER(double fr1, double bl1, double br1, double fl1) {
-        frontRight.setPower(fr1);
-        backLeft.setPower(bl1);
-        frontLeft.setPower(fl1);
-        backRight.setPower(br1);
+    public void POWER(double df1, double sf1, double ds1, double ss1){
+        frontRight.setPower(df1);
+        backLeft.setPower(ss1);
+        frontLeft.setPower(sf1);
+        backRight.setPower(ds1);
     }
     private double normalizeAngle(double angle) {
         while (angle > Math.PI) angle -= 2 * Math.PI;
