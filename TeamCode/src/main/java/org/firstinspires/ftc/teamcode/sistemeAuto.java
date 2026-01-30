@@ -46,7 +46,6 @@ public class sistemeAuto {
     public final double SkP = 80, SkI = 0.050, SkF = 15.50, SkD = 5;
 //    public final double SkPS = 70, SkIS = 0.050, SkFS= 13.50, SkDS = 5;
 
-    public int loculete = 3;
 
     public void initsisteme(HardwareMap hard) {
 
@@ -280,10 +279,69 @@ public class sistemeAuto {
         }
         return 0;
     }
+
     private double normalizeAngle(double angle) {
         while (angle > Math.PI) angle -= 2 * Math.PI;
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
+    }
+
+    // --- Tracking Limelight pentru Auto ---
+    private double lastTx = 0;
+    private double turelaPID_integral = 0;
+    private double turelaPID_lastError = 0;
+    private static final double TURELA_KP = 0.008;
+    private static final double TURELA_KI = 0.0001;
+    private static final double TURELA_KD = 0.001;
+
+    public void trackLimelight() {
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            List<FiducialResult> fiducials = result.getFiducialResults();
+            if (fiducials != null && !fiducials.isEmpty()) {
+                lastTx = result.getTx();
+
+                double error = -lastTx;
+                turelaPID_integral += error;
+                turelaPID_integral = Math.max(-50, Math.min(50, turelaPID_integral));
+                double derivative = error - turelaPID_lastError;
+                turelaPID_lastError = error;
+
+                double correction = TURELA_KP * error + TURELA_KI * turelaPID_integral + TURELA_KD * derivative;
+                correction = Math.max(-0.15, Math.min(0.15, correction));
+
+                double currentPos = turelaS.getPosition();
+                double newPos = currentPos + correction;
+                newPos = Math.max(0.0, Math.min(1.0, newPos));
+
+                turelaS.setPosition(newPos);
+                turelaD.setPosition(newPos);
+            }
+        }
+    }
+
+    public void stopTurela() {
+        turelaS.setPosition(0.5);
+        turelaD.setPosition(0.5);
+    }
+
+    public void resetTurelaPID() {
+        turelaPID_integral = 0;
+        turelaPID_lastError = 0;
+        lastTx = 0;
+    }
+
+    public double getLimelightTx() {
+        return lastTx;
+    }
+
+    public boolean isTagVisible() {
+        LLResult result = limelight.getLatestResult();
+        if (result != null && result.isValid()) {
+            List<FiducialResult> fiducials = result.getFiducialResults();
+            return fiducials != null && !fiducials.isEmpty();
+        }
+        return false;
     }
 }
 

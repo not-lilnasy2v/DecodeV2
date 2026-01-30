@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -33,10 +34,10 @@ public class servoGasire extends LinearOpMode {
         while (opModeIsActive()) {
 //            pos= turela.getCurrentPosition();
             if (gamepad1.a) {
-                pos += 0.0003;
+                turelaS.setPosition(1);
             }
             if (gamepad1.b) {
-                pos -= 0.0003;
+                turelaD.setPosition(0);
             }
 
 //            aruncare.setPosition(pos);
@@ -46,6 +47,7 @@ public class servoGasire extends LinearOpMode {
 //            unghiS.setPosition(pos);
             turelaD.setPosition(pos);
             turelaS.setPosition(pos);
+
 
 //            turela.setMode(DcMotor.RunMode.RUN_TO_POSITION);
 //            turela.setPower(0.1);

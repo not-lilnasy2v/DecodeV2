@@ -22,14 +22,12 @@ import org.firstinspires.ftc.teamcode.sistemeAuto;
 @Autonomous
 public class FirstAuto extends OpMode {
     sistemeAuto n = new sistemeAuto();
-    private Follower follower;
+    public Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
 
-/*
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 154;
-*/
 
     private final Pose startPose = new Pose(24.503496503496507, 128.8951048951049, Math.toRadians(142));
     private final Pose tragere1 = new Pose(63.72027972027973, 95.74825174825179, Math.toRadians(180));
@@ -319,14 +317,9 @@ public class FirstAuto extends OpMode {
     }
 
 
-    private void untrack() { // pozitia a doua pentru track lmao
-        n.turelaD.setPosition(0.23);
-        n.turelaS.setPosition(0.23);
-    }
     private void track() {
-//        n.tracks(follower, TARGET_X, TARGET_Y);
-        n.turelaS.setPosition(0.21);
-        n.turelaD.setPosition(0.21);
+        n.tracks(follower, TARGET_X, TARGET_Y);
+
     }
 
     public void autonomousPathUpdate() {
@@ -450,7 +443,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 13:
-                untrack();
+                track();
                 if (!follower.isBusy()) {
                     follower.holdPoint(tras2);
                     setPathState(14);
@@ -458,7 +451,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 14:
-                untrack();
+                track();
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -618,6 +611,9 @@ public class FirstAuto extends OpMode {
 
         telemetry.addData("servo", n.sortare.getPosition());
         telemetry.addData("slot",slotOcupat);
+        telemetry.addData("Drift acumulat", "%.2f°", RobotPozitie.accumulatedDrift);
+        telemetry.addData("LL tx", "%.2f°", n.getLimelightTx());
+        telemetry.addData("Tag vizibil", n.isTagVisible() ? "DA" : "NU");
         telemetry.update();
         autonomousPathUpdate();
     }
@@ -653,6 +649,10 @@ public class FirstAuto extends OpMode {
         slotOcupat[0] = true;
         slotOcupat[1] = true;
         slotOcupat[2] = true;
+
+        // Reset PID si drift la start
+        n.resetTurelaPID();
+        RobotPozitie.accumulatedDrift = 0;
 
         Intake();
         IntakeThread.start();

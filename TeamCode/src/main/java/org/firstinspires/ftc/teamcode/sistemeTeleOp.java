@@ -106,10 +106,6 @@ public class sistemeTeleOp {
         while (lastTime + t > System.currentTimeMillis()) {
         }
     }
-    public boolean esteBilaPresenta() {
-        double distantaCM = distanta.getDistance(org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM);
-        return distantaCM <= Pozitii.DISTANCE_CM;
-    }
     public int detecteazaBiloaca() {
         long now = System.currentTimeMillis();
         if (lastDetectedColor != CULOARE_NIMIC && (now - lastDetectionTime) < 50) {
@@ -147,12 +143,6 @@ public class sistemeTeleOp {
         return detectBackup();
     }
 
-    public int detecteazaBiloacaCuDistanta() {
-        if (!esteBilaPresenta()) {
-            return CULOARE_NIMIC;
-        }
-        return detecteazaBiloaca();
-    }
 
     private int detectSingleMain() {
         NormalizedRGBA rgba = colors.getNormalizedColors();

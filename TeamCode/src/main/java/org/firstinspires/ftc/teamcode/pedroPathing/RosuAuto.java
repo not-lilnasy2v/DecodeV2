@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.sistemeAuto;
 @Autonomous
 public class RosuAuto extends OpMode {
     sistemeAuto n = new sistemeAuto();
-    private Follower follower;
+    public Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
     private static final double TARGET_X = 144;
@@ -604,9 +604,9 @@ public class RosuAuto extends OpMode {
 
 
     private void track() {
-//        n.tracks(follower, TARGET_X, TARGET_Y);
-        n.turelaD.setPosition(0.77);
-        n.turelaS.setPosition(0.77);
+        n.tracks(follower, TARGET_X, TARGET_Y);
+//        n.turelaD.setPosition(0.77);
+//        n.turelaS.setPosition(0.77);
     }
 
 

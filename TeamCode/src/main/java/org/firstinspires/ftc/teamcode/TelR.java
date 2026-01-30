@@ -14,11 +14,18 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.util.ElapsedTime;
+import java.util.List;
 @TeleOp(name = "Main Rosu")
 @Configurable
 public class TelR extends OpMode {
     private DcMotorEx frontRight, frontLeft, backRight, backLeft;
-    private Follower follower;
+    private Limelight3A limelight;
+    public Follower follower;
     volatile boolean stop;
     double sm = 1;
     double max = 0;
@@ -28,11 +35,37 @@ public class TelR extends OpMode {
 
     private final double TargetX = 144;
     private final double TargetY = 144;
+
+    private static double kP = 0.00034;//TODO:cred ca trebuie scazut
+    private static double kI = 0.001;
+    private static double kD = 0.00004;
+    private static double Integrala = 0.3;
+    private static double CameraCorectieMAX = 0.05;
+    private static double ThresholdCentru = 0.96;
+    private static double AkP = 0.0005;
+    private static double AkI = 0.001;
+    private static double AkD = 0.00006;
+    private static double AgresivitateMax = 0.35;
+    private static double ATHRESHOLD = 3.0;
+    private static double STAT_THRESHOLD = 0.5;
+
+    private double lastX = 0, lastY = 0;
+    private boolean robotStat = false;
+
+    private double integral = 0;
+    private double lastError = 0;
+    private ElapsedTime pidTimer = new ElapsedTime();
+
+    private double pTerm = 0, iTerm = 0, dTerm = 0;
+    private volatile double lastCameraCorrection = 0;
+    private volatile double lastTx = 0;
+    private volatile boolean tagVizibil = false;
+
     private static double voltajeNominale = 12.68;
 
 
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,Touch = false,trouch=false;
-    private double ledistante, posU;
+    private volatile double distantare, posU;
     int idTag = RobotPozitie.idTag;
 
     private volatile boolean[] slotOcupat = new boolean[3];
@@ -78,6 +111,7 @@ public class TelR extends OpMode {
     private volatile boolean sugere = false;
     private volatile boolean trageShooting = false;
     private final Object blocat = new Object();
+    private volatile double turelaPos = 0.5;
 
     private void applyVoltageCompensatedPIDF() {
         double currentVoltage = m.voltageSensor.getVoltage();
@@ -85,10 +119,7 @@ public class TelR extends OpMode {
         double voltageCompensation = voltajeNominale / currentVoltage;
         double compensatedF = m.SkF * voltageCompensation;
         PIDFCoefficients compensatedPID = new PIDFCoefficients(m.SkP, m.SkI, m.SkD, compensatedF);
-//        PIDFCoefficients compensatedPIDS = new PIDFCoefficients(m.SkPS, m.SkIS, m.SkDS, compensatedF);
         m.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
-//        m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPIDF);
-
         m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
     }
 
@@ -120,10 +151,29 @@ public class TelR extends OpMode {
         follower.update();
 
         applyVoltageCompensatedPIDF();
+
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(2);
+        limelight.start();
+
+        m.turelaS.setPosition(0.5);
+        m.turelaD.setPosition(0.5);
+        turelaPos = 0.5;
+    }
+
+    private void resetCameraPID() {
+        integral = 0;
+        lastError = 0;
+        pTerm = 0;
+        iTerm = 0;
+        dTerm = 0;
+        pidTimer.reset();
     }
 
     public void start() {
         follower.update();
+        resetCameraPID();
+        pidTimer.reset();
         Chassis.start();
         Butoane.start();
         Turela.start();
@@ -135,14 +185,15 @@ public class TelR extends OpMode {
         @Override
         public void run() {
             while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
                 posU = m.unghiS.getPosition();
 
                 if(gamepad1.dpad_right){
-                    ShooterVelocity = 2000;
+                    targetShooterVelocity = 2000;
                     posU= 0.4617;
                 }
                 if(gamepad1.dpad_left){
-                    ShooterVelocity = 1650;
+                    targetShooterVelocity = 1650;
                     posU = 0.3444;
                 }
 
@@ -180,10 +231,6 @@ public class TelR extends OpMode {
                         trouch = !trouch;
                     }
                     Touch = gamepad1_touch;
-                }
-                if(gamepad1.touchpad){
-                    m.turelaS.setPosition(1);
-                    m.turelaD.setPosition(1);
                 }
                 boolean gamepad1_a = gamepad1.a;
                 if (IntakePornit != gamepad1_a) {
@@ -241,6 +288,7 @@ public class TelR extends OpMode {
         @Override
         public void run() {
             while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
                 follower.update();
                 Pose currentPose = follower.getPose();
 
@@ -248,30 +296,87 @@ public class TelR extends OpMode {
                 double currentY = currentPose.getY();
                 double currentH = currentPose.getHeading();
 
+                //robot stat
+                double deltaX = currentX - lastX;
+                double deltaY = currentY - lastY;
+                double robotSpeed = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 100;  // *100 pentru ca e per 10ms
+                lastX = currentX;
+                lastY = currentY;
+                robotStat = robotSpeed < STAT_THRESHOLD;
+
+                LLResult result = limelight.getLatestResult();
+                tagVizibil = isTagVisible(result);
+                if (tagVizibil) {
+                    lastTx = result.getTx();
+                }
 
                 if (tracking) {
-
                     double dx = TargetX - currentX;
                     double dy = TargetY - currentY;
 
                     double unghiLaTarget = Math.atan2(dy, dx);
                     double turretAngleRad = unghiLaTarget - currentH;
-
                     turretAngleRad = normalizeAngle(turretAngleRad);
+                    double turretAngleDeg = -Math.toDegrees(turretAngleRad);
 
-                    double turretAngleDeg = Math.toDegrees(turretAngleRad);
+                    double odomPos = m.turelaS.angleToPosition(turretAngleDeg);
 
-                    double posS = m.turelaS.angleToPosition(turretAngleDeg);
-                    double posD = m.turelaD.angleToPosition(turretAngleDeg);
+                    double cameraCorectie = 0;
 
-                    m.turelaS.setPosition(posS);
-                    m.turelaD.setPosition(posD);
+                    if (tagVizibil && robotStat) {
+                        double dt = pidTimer.seconds();
+                        pidTimer.reset();
+                        if (dt <= 0 || dt > 0.5) dt = 0.02;
 
-                }else if (!trouch){
+                        double error = -lastTx;
+
+                        boolean folosescAgresivitatea = Math.abs(lastTx) > ATHRESHOLD;
+                        double aKp = folosescAgresivitatea ? AkP : kP;
+                        double aKi = folosescAgresivitatea ? AkI : kI;
+                        double aKd = folosescAgresivitatea ? AkD : kD;
+                        double activMaxCore = folosescAgresivitatea ? AgresivitateMax : CameraCorectieMAX;
+
+                        // P
+                        pTerm = aKp * error;
+
+                        // I
+                        if (Math.abs(lastTx) < ThresholdCentru) {
+                            integral *= 0.9;
+                        } else {
+                            integral += error * dt;
+                        }
+                        integral = Math.max(-Integrala, Math.min(Integrala, integral));
+                        iTerm = aKi * integral;
+
+                        double d = (error - lastError) / dt;
+                        dTerm = aKd * d;
+                        lastError = error;
+
+                        cameraCorectie = pTerm + iTerm + dTerm;
+
+                        cameraCorectie = Math.max(-activMaxCore, Math.min(activMaxCore, cameraCorectie));
+                    } else {
+                        integral *= 0.95;
+                        pTerm = 0;
+                        iTerm = 0;
+                        dTerm = 0;
+                    }
+
+                    lastCameraCorrection = cameraCorectie;
+
+                    double finalPos = odomPos + cameraCorectie;
+
+                    finalPos = Math.max(0.0, Math.min(1.0, finalPos));
+
+                    m.turelaS.setPosition(finalPos);
+                    m.turelaD.setPosition(finalPos);
+
+                } else if (!trouch) {
+                    lastCameraCorrection = 0;
                     m.turelaS.setPosition(0.5);
                     m.turelaD.setPosition(0.5);
-                }
-                else {
+                } else {
+                    lastCameraCorrection = 0;
                     if (gamepad1.left_bumper) {
                         double pos = m.turelaS.getPosition() + 0.035;
                         m.turelaS.setPosition(pos);
@@ -286,76 +391,11 @@ public class TelR extends OpMode {
         }
     });
 
-//    }
-//                    if (tracking) {
-//                        LLResult result = limelight3A.getLatestResult();
-//
-//                        if (result != null && result.isValid()) {
-//                            tx = result.getTx();
-//
-//                            double error = tx;
-//                            integral += error;
-//                            double derivative = error - lastError;
-//
-//                            power = TkP * error + TkI * integral + TkD * derivative;
-//
-//                            int targetPos = positiiTurela + (int) (power * 50);
-//
-//                            if (targetPos > Pozitii.TURRET_MAX_POS) {
-//                                targetPos = Pozitii.TURRET_MAX_POS;
-//                                integral = 0;
-//                            }
-//                            if (targetPos < Pozitii.TURRET_MIN_POS) {
-//                                targetPos = Pozitii.TURRET_MIN_POS;
-//                                integral = 0;
-//                            }
-//
-//                            if (positiiTurela >= Pozitii.TURRET_MIN_POS && positiiTurela <= Pozitii.TURRET_MAX_POS) {
-//                                m.turela.setPower(power);
-//                            } else {
-//                                if ((positiiTurela <= Pozitii.TURRET_MIN_POS && power > 0) ||
-//                                        (positiiTurela >= Pozitii.TURRET_MAX_POS && power < 0)) {
-//                                    m.turela.setPower(power);
-//                                } else {
-//                                    m.turela.setPower(0);
-//                                }
-//                            }
-//                            lastError = error;
-//
-//
-//                        } else {
-//                            m.turela.setPower(0);
-//                        }
-//
-//                        //securitate
-//                        if (positiiTurela > Pozitii.TURRET_MAX_POS) {
-//                            positiiTurela = Pozitii.TURRET_MAX_POS;
-//                        }
-//                        if (positiiTurela < Pozitii.TURRET_MIN_POS) {
-//                            positiiTurela = Pozitii.TURRET_MIN_POS;
-//                        }
-//
-//
-//                        lastError = 0;
-//                        integral = 0;
-//                    } else {
-//                        m.turela.setPower(0);
-//                    }
-//                }
-//
-//                try {
-//                    Thread.sleep(20);
-//                } catch (InterruptedException e) {
-//                    Thread.currentThread().interrupt();
-//                }
-//            }
-//        }
-//    });
-
     private final Thread Sortare = new Thread(new Runnable() {
         @Override
         public void run() {
             while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
@@ -363,9 +403,9 @@ public class TelR extends OpMode {
                         sugere = true;
                         m.intake.setPower(1);
 
-                        ledistante = m.distanta.getDistance(DistanceUnit.CM);
+                        distantare = m.distanta.getDistance(DistanceUnit.CM);
 
-                        if (m.bilaPrezenta(ledistante)) {
+                        if (m.bilaPrezenta(distantare)) {
                             int detectedColor = m.detecteazaBiloaca();
                             double servoPos = m.sortare.getPosition();
                             if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
@@ -385,7 +425,6 @@ public class TelR extends OpMode {
                                 } else if (!slotOcupat[0]) {
                                     m.sortare.setPosition(Pozitii.luarea1);
                                 }
-                                gamepad1.rumble(2000);
                                 m.kdf(350);
                             } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
                                 slotOcupat[2] = true;
@@ -425,17 +464,18 @@ public class TelR extends OpMode {
     });
 
     private int[] cPattern = new int[3];
-    private double ShooterVelocity = 1650;
+    private double targetShooterVelocity = 1650;
 
     private final Thread Shooter = new Thread(new Runnable() {
         @Override
         public void run() {
             while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
-                    m.shooter.setVelocity(ShooterVelocity);
-                    m.shooter2.setVelocity(ShooterVelocity);
+                    m.shooter.setVelocity(targetShooterVelocity);
+                    m.shooter2.setVelocity(targetShooterVelocity);
 
                     if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
@@ -550,6 +590,7 @@ public class TelR extends OpMode {
         @Override
         public void run() {
             while (!stop) {
+                try { Thread.sleep(5); } catch (InterruptedException e) { break; }
                 double y = -gamepad1.left_stick_y;
                 double x = gamepad1.left_stick_x * 1.1;
                 double rx = gamepad1.right_stick_x;
@@ -586,6 +627,9 @@ public class TelR extends OpMode {
 
     public void stop() {
         stop = true;
+        if (limelight != null) {
+            limelight.stop();
+        }
     }
 
     @Override
@@ -622,8 +666,8 @@ public class TelR extends OpMode {
         telemetry.addData("Total biloace", getLoculete());
         telemetry.addData("turela", m.turelaD.getPosition());
         telemetry.addData("unghi", posU);
-        telemetry.addData("distanta", detected);
-        telemetry.addData("targetVelocity", ShooterVelocity);
+        telemetry.addData("distanta", distantare);
+        telemetry.addData("targetVelocity", targetShooterVelocity);
         telemetry.update();
     }
 
@@ -637,5 +681,12 @@ public class TelR extends OpMode {
         while (angle > Math.PI) angle -= 2 * Math.PI;
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
+    }
+
+    /// Ajutor
+    private boolean isTagVisible(LLResult result) {
+        if (result == null || !result.isValid()) return false;
+        List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+        return fiducials != null && !fiducials.isEmpty();
     }
 }

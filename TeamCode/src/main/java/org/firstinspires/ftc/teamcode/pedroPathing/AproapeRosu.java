@@ -21,16 +21,16 @@ import org.firstinspires.ftc.teamcode.sistemeAuto;
 @Autonomous(name = "Departe Rosu")
 public class AproapeRosu extends OpMode {
     sistemeAuto n = new sistemeAuto();
-    private Follower follower;
+    public Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
 
     private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
-    private final Pose shootingPose = new Pose(84.35034965034964, 23.07692307692308, Math.toRadians(90));
-
-    private final Pose colectare = new Pose(130.54545454545456, 31.75524475524475, Math.toRadians(0));
-    private final Pose cotrolare = new Pose(86.7835664335664, 36.15384615384616);
-    private final Pose tragere2 = new Pose(84.35034965034964, 23.07692307692308, Math.toRadians(90));
+    private final Pose shootingPose = new Pose(85.35034965034964, 23.07692307692308, Math.toRadians(90));
+    private final Pose colectare = new Pose(134.54545454545456, 35.75524475524475, Math.toRadians(0));
+    private final Pose cotrolare = new Pose(81.74272629354311, 40.5307423032044);
+    private final Pose corectarelacotrolare = new Pose(103.58734200455321, 34.11270001876771);
+    private final Pose tragere2 = new Pose(87.35034965034964, 23.07692307692308, Math.toRadians(90));
 
     private Path laShooting;
     private PathChain iale, tragere;
@@ -62,15 +62,6 @@ public class AproapeRosu extends OpMode {
         }
     }
 
-    private int getPrimulSlotLiber() {
-        synchronized (slot) {
-            for (int i = 0; i < 3; i++) {
-                if (!slotOcupat[i]) return i;
-            }
-            return -1;
-        }
-    }
-
     private double getLuarePos(int slot) {
         if (slot == 0) return Pozitii.luarea1;
         if (slot == 1) return Pozitii.luarea2;
@@ -82,12 +73,15 @@ public class AproapeRosu extends OpMode {
         laShooting.setConstantHeadingInterpolation(startPose.getHeading());
 
         iale = follower.pathBuilder()
-                .addPath(new BezierCurve(shootingPose, cotrolare, colectare))
-                .setLinearHeadingInterpolation(shootingPose.getHeading(), colectare.getHeading())
+                .addPath(new BezierCurve(shootingPose, cotrolare, corectarelacotrolare,colectare))
+                .setTangentHeadingInterpolation()
                 .build();
         tragere = follower.pathBuilder()
                 .addPath(new BezierLine(colectare, tragere2))
                 .setLinearHeadingInterpolation(colectare.getHeading(), tragere2.getHeading())
+                .setTranslationalConstraint(1)
+                .setHeadingConstraint(10)
+                .setTimeoutConstraint(50)
                 .build();
     }
 
@@ -151,7 +145,6 @@ public class AproapeRosu extends OpMode {
                     int moveWait = (int)(dist * 550) + 150;
                     n.kdf(moveWait);
 
-                    // Detectează culoarea
                     for (int retry = 0; retry < 3 && slotColor[i] == -1; retry++) {
                         n.resetareDetection();
                         slotColor[i] = n.detecteazaBiloaca();
@@ -247,8 +240,8 @@ public class AproapeRosu extends OpMode {
                 ballTras = getLoculete();
                 if (ballTras > 0) {
                     if (Pattern) {
-                        // Pattern
-                        currentShootSlot = gasesteBilaCuCuloare(cPattern[3 - ballTras]);
+                        int patternIndex = Math.max(0, Math.min(2, 3 - ballTras));
+                        currentShootSlot = gasesteBilaCuCuloare(cPattern[patternIndex]);
                     } else {
                         // Rapid fire - de la slot 2 în jos
                         currentShootSlot = 2;
@@ -337,71 +330,51 @@ public class AproapeRosu extends OpMode {
                 break;
         }
     }
-
     private void track() {
-        n.turelaD.setPosition(0.36);
-        n.turelaS.setPosition(0.36);
+        n.trackLimelight();
+    }
+
+    private void untrack() {
+        n.stopTurela();
     }
 
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
-            private boolean ballProcesata = false;
             private long lastBallTime = 0;
+            private int bileCurente = 0;
+            private boolean asteptaIntrare = false;
+
             @Override
             public void run() {
                 while (!stop) {
-                    int loculete = getLoculete();
-
-                    if (intakePornit && loculete < 3) {
+                    if (intakePornit && bileCurente < 3) {
                         n.intake.setPower(1);
 
                         double leDistanta = n.distanta.getDistance(DistanceUnit.CM);
                         long currentTime = System.currentTimeMillis();
 
-                        boolean cooldownTrecut = (currentTime - lastBallTime) > 400;
-
-                        if (n.bilaPrezenta(leDistanta) && !ballProcesata && cooldownTrecut) {
-                            ballProcesata = true;
-
-                            n.kdf(50);
+                        if (!asteptaIntrare && leDistanta < 20 && (currentTime - lastBallTime) > 400) {
+                            asteptaIntrare = true;
+                            lastBallTime = currentTime;
 
                             n.resetareDetection();
-                            int culoareDetectata = n.detecteazaBiloaca();
+                            slotColor[bileCurente] = n.detecteazaBiloaca();
 
-                            int slotDeOcupat = getPrimulSlotLiber();
+                        } else if (asteptaIntrare && leDistanta >= 20) {
+                            slotOcupat[bileCurente] = true;
+                            bileCurente++;
 
-                            if (slotDeOcupat != -1) {
-                                synchronized (slot) {
-                                    if (!slotOcupat[slotDeOcupat]) {
-                                        slotOcupat[slotDeOcupat] = true;
-                                        slotColor[slotDeOcupat] = culoareDetectata;
-                                        lastBallTime = currentTime;
-
-                                        int nextSlot = -1;
-                                        for (int i = 0; i < 3; i++) {
-                                            if (!slotOcupat[i]) {
-                                                nextSlot = i;
-                                                break;
-                                            }
-                                        }
-
-                                        if (nextSlot != -1) {
-                                            n.sortare.setPosition(getLuarePos(nextSlot));
-                                            IntakeSlot = nextSlot;
-                                        }
-                                    }
-                                }
-
-                                n.kdf(250);
+                            if (bileCurente < 3) {
+                                n.sortare.setPosition(getLuarePos(bileCurente));
+                                n.kdf(200);
                             }
 
-                        } else if (leDistanta >= 30 && ballProcesata) {
-                            ballProcesata = false;
+                            asteptaIntrare = false;
                         }
-
                     } else if (!intakePornit) {
                         n.intake.setPower(0);
-                        ballProcesata = false;
+                        bileCurente = 0;
+                        asteptaIntrare = false;
                     }
 
                     try {
@@ -447,7 +420,7 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 3:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
+                if (actionTimer.getElapsedTimeSeconds() >= 1.5) {
                     setPathState(4);
                 }
                 break;
@@ -465,20 +438,25 @@ public class AproapeRosu extends OpMode {
                 n.sortare.setPosition(Pozitii.luarea1);
                 n.kdf(100);
                 intakePornit = true;
-                follower.followPath(iale,0.7, false);
+                follower.followPath(iale);
                 setPathState(5);
                 break;
 
             case 5:
                 if (!follower.isBusy()) {
                     follower.holdPoint(colectare);
+                    n.kdf(50);
                     actionTimer.resetTimer();
                     setPathState(6);
                 }
                 break;
 
             case 6:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 2.0) {
+                if (getLoculete() >= 3) {
+                    n.kdf(400);
+                    intakePornit = false;
+                    setPathState(7);
+                } else if (actionTimer.getElapsedTimeSeconds() >= 3.0) {
                     intakePornit = false;
                     if (getLoculete() > 0) {
                         setPathState(7);
@@ -561,6 +539,8 @@ public class AproapeRosu extends OpMode {
         telemetry.addLine("");
         telemetry.addData("Pattern ID", idTag);
         telemetry.addData("Use Pattern", Pattern);
+        telemetry.addData("LL tx", "%.2f°", n.getLimelightTx());
+        telemetry.addData("Tag vizibil", n.isTagVisible() ? "DA" : "NU");
         telemetry.update();
     }
 
@@ -580,6 +560,8 @@ public class AproapeRosu extends OpMode {
         for (int i = 0; i < 3; i++) {
             slotColor[i] = -1;
         }
+
+        n.limelight.pipelineSwitch(1);
     }
 
     @Override
@@ -606,6 +588,9 @@ public class AproapeRosu extends OpMode {
         slotColor[2] = -1;
 
         n.sortare.setPosition(Pozitii.luarea1);
+
+        n.limelight.pipelineSwitch(2);
+        n.resetTurelaPID();
 
         Intake();
         IntakeThread.start();
