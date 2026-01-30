@@ -17,8 +17,6 @@ public class Pozitii {
     /// Positii turela?
     public static final int TURRET_MIN_POS = -178; //dreapta
     public static final int TURRET_MAX_POS = 126;
-    public static final int rosu_turret = 156;
-    public static final int albastru_turret = 156;
     public static final float MAIN_VERDE_HUE_MIN = 120f;
     public static final float MAIN_VERDE_HUE_MAX = 170f;
     public static final float MAIN_MOV_HUE_MIN = 220f;
@@ -39,8 +37,6 @@ public class Pozitii {
     public static final double DISTANCE_CM = 5.0;
 
     /// Servo Unghi
-
     public static final double max_sus = 0.443;
-    public static final double max_jos =0.3456;
 
 }
