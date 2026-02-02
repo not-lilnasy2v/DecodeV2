@@ -109,7 +109,7 @@ public class sistemeAuto {
         voltageSensor = hard.get(VoltageSensor.class, "Control Hub");
 
         limelight = hard.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(1);
+        limelight.pipelineSwitch(0);
         limelight.start();
     }
 
@@ -130,7 +130,7 @@ public class sistemeAuto {
 
         turretAngleRad = normalizeAngle(turretAngleRad);
 
-        double turretAngleDeg = Math.toDegrees(turretAngleRad);
+        double turretAngleDeg = -Math.toDegrees(turretAngleRad);
 
         double posS = turelaS.angleToPosition(turretAngleDeg);
         double posD = turelaD.angleToPosition(turretAngleDeg);
@@ -286,7 +286,6 @@ public class sistemeAuto {
         return angle;
     }
 
-    // --- Tracking Limelight pentru Auto ---
     private double lastTx = 0;
     private double turelaPID_integral = 0;
     private double turelaPID_lastError = 0;
@@ -301,7 +300,7 @@ public class sistemeAuto {
             if (fiducials != null && !fiducials.isEmpty()) {
                 lastTx = result.getTx();
 
-                double error = -lastTx;
+                double error = lastTx;
                 turelaPID_integral += error;
                 turelaPID_integral = Math.max(-50, Math.min(50, turelaPID_integral));
                 double derivative = error - turelaPID_lastError;

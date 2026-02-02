@@ -39,7 +39,7 @@ public class RosuAuto extends OpMode {
     private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
     private final Pose aluat3 = new Pose(125.1163333170326, 37.5416401780038 , Math.toRadians(0));
     private final Pose tras3 = new Pose(80.16783216783216,96.5874125874126,Math.toRadians(0));
-    private final Pose returnToBase = new Pose(117.42657342657343,85.67832167832168,Math.toRadians(0));
+    private final Pose returnToBase = new Pose(117.42657342657343,95.67832167832168,Math.toRadians(0));
 
 
     private Path scorePreload;
@@ -412,7 +412,7 @@ public class RosuAuto extends OpMode {
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
                     intakePornit = false;
                     if (getLoculete() == 0) {
-                        setPathState(60);
+                        setPathState(26);
                     } else {
                         setPathState(11);
                     }
@@ -653,6 +653,8 @@ public class RosuAuto extends OpMode {
         slotOcupat[0] = true;
         slotOcupat[1] = true;
         slotOcupat[2] = true;
+
+        n.resetTurelaPID();
 
         Intake();
         IntakeThread.start();

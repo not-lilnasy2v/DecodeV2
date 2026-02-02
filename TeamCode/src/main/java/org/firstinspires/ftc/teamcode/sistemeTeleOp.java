@@ -69,12 +69,12 @@ public class sistemeTeleOp {
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
         unghiS = ServoImplExEx.get(hard, "unghiS");
-        unghiS.setPosition(0.3444);
-        unghiD.setPosition(0.3444);
-        unghiD.setMinPosition(0.1485);
-        unghiS.setMinPosition(0.1485);
-        unghiS.setMaxPosition(0.4829);
-        unghiD.setMaxPosition(0.4829);
+        unghiS.setPosition(0.27);
+        unghiD.setPosition(0.27);
+        unghiD.setMinPosition(0.12);
+        unghiS.setMinPosition(0.12);
+        unghiS.setMaxPosition(0.41);
+        unghiD.setMaxPosition(0.41);
 
 
         distanta = hard.get(DistanceSensor.class, "distanta");

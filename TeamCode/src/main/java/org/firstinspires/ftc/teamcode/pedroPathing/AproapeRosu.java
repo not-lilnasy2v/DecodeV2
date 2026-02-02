@@ -24,6 +24,8 @@ public class AproapeRosu extends OpMode {
     public Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
+    private static final double TARGET_X = 144;
+    private static final double TARGET_Y = 135;
 
     private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
     private final Pose shootingPose = new Pose(85.35034965034964, 23.07692307692308, Math.toRadians(90));
@@ -31,9 +33,13 @@ public class AproapeRosu extends OpMode {
     private final Pose cotrolare = new Pose(81.74272629354311, 40.5307423032044);
     private final Pose corectarelacotrolare = new Pose(103.58734200455321, 34.11270001876771);
     private final Pose tragere2 = new Pose(87.35034965034964, 23.07692307692308, Math.toRadians(90));
+    private final Pose luare3 = new Pose(131.9416569428238,34.340723453909014, Math.toRadians(290));
+    private final Pose aluat3 = new Pose(136.41773628938157, 8.250875145857645, Math.toRadians(295));
+    private final Pose tragere3 = new Pose(85.88681446907816,22.516919486581088, Math.toRadians(90));
+    private final Pose iesirea = new Pose(107.28773327023034, 10.97982064609837, Math.toRadians(90));
 
     private Path laShooting;
-    private PathChain iale, tragere;
+    private PathChain iale, tragere, iesireas,treiluare,aluattrei,treiTragere;
 
     private boolean TragereInProgres = false;
     private int ShootingStare = 0;
@@ -82,6 +88,25 @@ public class AproapeRosu extends OpMode {
                 .setTranslationalConstraint(1)
                 .setHeadingConstraint(10)
                 .setTimeoutConstraint(50)
+                .build();
+        treiluare = follower.pathBuilder()
+                .addPath(new BezierLine(tragere2,luare3))
+                .setLinearHeadingInterpolation(tragere2.getHeading(),luare3.getHeading())
+                .build();
+        aluattrei = follower.pathBuilder()
+                .addPath(new BezierLine(luare3,aluat3))
+                .setLinearHeadingInterpolation(luare3.getHeading(),aluat3.getHeading())
+                .build();
+        treiTragere = follower.pathBuilder()
+                .addPath(new BezierLine(aluat3,tragere3))
+                .setLinearHeadingInterpolation(aluat3.getHeading(),tragere3.getHeading())
+                .setTranslationalConstraint(1)
+                .setHeadingConstraint(10)
+                .setTimeoutConstraint(50)
+                .build();
+        iesireas = follower.pathBuilder()
+                .addPath(new BezierLine(tragere3, iesirea))
+                .setLinearHeadingInterpolation(tragere3.getHeading(), iesirea.getHeading())
                 .build();
     }
 
@@ -330,60 +355,69 @@ public class AproapeRosu extends OpMode {
                 break;
         }
     }
-    private void track() {
-        n.trackLimelight();
-    }
 
-    private void untrack() {
-        n.stopTurela();
+
+    private void track() {
+        n.tracks(follower, TARGET_X, TARGET_Y);
     }
 
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
-            private long lastBallTime = 0;
-            private int bileCurente = 0;
-            private boolean asteptaIntrare = false;
+            private boolean ballBeingProcessed = false;
 
             @Override
             public void run() {
                 while (!stop) {
-                    if (intakePornit && bileCurente < 3) {
+                    try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                    int loculete = getLoculete();
+                    if (intakePornit && loculete < 3) {
                         n.intake.setPower(1);
 
                         double leDistanta = n.distanta.getDistance(DistanceUnit.CM);
-                        long currentTime = System.currentTimeMillis();
 
-                        if (!asteptaIntrare && leDistanta < 20 && (currentTime - lastBallTime) > 400) {
-                            asteptaIntrare = true;
-                            lastBallTime = currentTime;
+                        if (leDistanta < 20 && !ballBeingProcessed) {
+                            ballBeingProcessed = true;
 
-                            n.resetareDetection();
-                            slotColor[bileCurente] = n.detecteazaBiloaca();
+                            double servoPos = n.sortare.getPosition();
 
-                        } else if (asteptaIntrare && leDistanta >= 20) {
-                            slotOcupat[bileCurente] = true;
-                            bileCurente++;
+                            if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
+                                slotOcupat[0] = true;
+                                if (!slotOcupat[1]) {
+                                    n.sortare.setPosition(Pozitii.luarea2);
+                                } else if (!slotOcupat[2]) {
+                                    n.sortare.setPosition(Pozitii.luarea3);
+                                }
+                                n.kdf(150);
 
-                            if (bileCurente < 3) {
-                                n.sortare.setPosition(getLuarePos(bileCurente));
-                                n.kdf(200);
+                            } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
+                                slotOcupat[1] = true;
+                                if (!slotOcupat[2]) {
+                                    n.sortare.setPosition(Pozitii.luarea3);
+                                } else if (!slotOcupat[0]) {
+                                    n.sortare.setPosition(Pozitii.luarea1);
+                                }
+                                n.kdf(150);
+
+                            } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
+                                slotOcupat[2] = true;
+                                if (!slotOcupat[0]) {
+                                    n.sortare.setPosition(Pozitii.luarea1);
+                                } else if (!slotOcupat[1]) {
+                                    n.sortare.setPosition(Pozitii.luarea2);
+                                }
+                                n.kdf(150);
                             }
 
-                            asteptaIntrare = false;
+                        } else if (leDistanta >= 20 && ballBeingProcessed) {
+                            ballBeingProcessed = false;
                         }
                     } else if (!intakePornit) {
                         n.intake.setPower(0);
-                        bileCurente = 0;
-                        asteptaIntrare = false;
-                    }
-
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        break;
+                        ballBeingProcessed = false;
                     }
                 }
             }
+
         });
     }
 
@@ -467,6 +501,8 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 7:
+                follower.followPath(tragere);
+
                 verificaSloturiNecunoscute();
 
                 if (Pattern) {
@@ -479,7 +515,6 @@ public class AproapeRosu extends OpMode {
                     n.sortare.setPosition(Pozitii.aruncare3);
                 }
 
-                follower.followPath(tragere);
                 setPathState(8);
                 break;
 
@@ -498,6 +533,94 @@ public class AproapeRosu extends OpMode {
                 }
                 TragereLaPupitru();
                 if (!TragereInProgres) {
+                    setPathState(10);
+                }
+                break;
+
+            case 10:
+               synchronized (slot) {
+                    slotOcupat[0] = false;
+                    slotOcupat[1] = false;
+                    slotOcupat[2] = false;
+                    slotColor[0] = -1;
+                    slotColor[1] = -1;
+                    slotColor[2] = -1;
+                }
+                n.sortare.setPosition(Pozitii.luarea1);
+                follower.followPath(treiluare);
+                setPathState(11);
+                break;
+
+            case 11:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(luare3);
+                    n.intake.setPower(-1);
+                    n.kdf(150);
+                    n.intake.setPower(0);
+                    intakePornit = true;
+                    follower.followPath(aluattrei);
+                    setPathState(12);
+                }
+                break;
+
+            case 12:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(13);
+                }
+                break;
+
+            case 13:
+                if (getLoculete() >= 3) {
+                    n.kdf(400);
+                    intakePornit = false;
+                    setPathState(14);
+                } else if (actionTimer.getElapsedTimeSeconds() >= 3.0) {
+                    intakePornit = false;
+                    if (getLoculete() > 0) {
+                        setPathState(14);
+                    } else {
+                        follower.followPath(iesireas);
+                        setPathState(-1);
+                    }
+                }
+                break;
+
+            case 14:
+                follower.followPath(treiTragere);
+
+                verificaSloturiNecunoscute();
+
+                if (Pattern) {
+                    int PrimaCuloare = cPattern[0];
+                    int PrimuSlot = gasesteBilaCuCuloare(PrimaCuloare);
+                    if (PrimuSlot != -1) {
+                        n.sortare.setPosition(getAruncarePos(PrimuSlot));
+                    }
+                } else {
+                    n.sortare.setPosition(Pozitii.aruncare3);
+                }
+
+                setPathState(15);
+                break;
+
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tragere3);
+                    setPathState(16);
+                }
+                break;
+
+            case 16:
+                track();
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+                TragereLaPupitru();
+                if (!TragereInProgres) {
+                    follower.followPath(iesireas);
                     setPathState(-1);
                 }
                 break;

@@ -43,7 +43,7 @@ public class FirstAuto extends OpMode {
     private final Pose aduna3 = new Pose(68.47552447552445, 40.06993006993007, Math.toRadians(180));
     private final Pose aluat3 = new Pose(16.210489510489513, 41.03076923076926, Math.toRadians(180));
     private final Pose tras3 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));
-    private final Pose returnToBase = new Pose(28.790209790209786,83.66433566433567,Math.toRadians(180));
+    private final Pose returnToBase = new Pose(28.790209790209786,93.66433566433567,Math.toRadians(180));
 
 
 
@@ -611,7 +611,6 @@ public class FirstAuto extends OpMode {
 
         telemetry.addData("servo", n.sortare.getPosition());
         telemetry.addData("slot",slotOcupat);
-        telemetry.addData("Drift acumulat", "%.2f°", RobotPozitie.accumulatedDrift);
         telemetry.addData("LL tx", "%.2f°", n.getLimelightTx());
         telemetry.addData("Tag vizibil", n.isTagVisible() ? "DA" : "NU");
         telemetry.update();
@@ -650,10 +649,7 @@ public class FirstAuto extends OpMode {
         slotOcupat[1] = true;
         slotOcupat[2] = true;
 
-        // Reset PID si drift la start
         n.resetTurelaPID();
-        RobotPozitie.accumulatedDrift = 0;
-
         Intake();
         IntakeThread.start();
     }
