@@ -7,6 +7,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
@@ -19,6 +20,7 @@ import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import java.util.List;
 
@@ -28,7 +30,8 @@ import java.util.List;
 public class Tel extends OpMode {
 
     // 50 mov // 60 - > verde
-    private DcMotorEx frontRight, frontLeft, backRight, backLeft;
+    private DcMotorEx frontRight, frontLeft, backRight, backLeft,scula;
+    private ServoImplEx bascula;
     private Limelight3A limelight;
     private GoBildaPinpointDriver pinpoint;
     public Follower follower;
@@ -43,7 +46,6 @@ public class Tel extends OpMode {
     public static double DEADBAND = 0.001;
     private double ultimaPozitie = 0.5;
     private ElapsedTime pidTimer = new ElapsedTime();
-
     private static double voltajeNominale = 12.68;
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false, Touch = false, trouch = false;
     private volatile double distantare, posU;
@@ -123,14 +125,12 @@ public class Tel extends OpMode {
     @Override
     public void init() {
         m.initsisteme(hardwareMap);
-
+        scula = hardwareMap.get(DcMotorEx.class, "scula");
         frontLeft = hardwareMap.get(DcMotorEx.class, "frontLeft");
         backLeft = hardwareMap.get(DcMotorEx.class, "backLeft");
         frontRight = hardwareMap.get(DcMotorEx.class, "frontRight");
         backRight = hardwareMap.get(DcMotorEx.class, "backRight");
-
-        frontLeft.setDirection(DcMotorSimple.Direction.REVERSE);
-        backLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+        bascula = hardwareMap.get(ServoImplEx.class, "bascula");
 
         frontLeft.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         frontRight.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
@@ -139,10 +139,12 @@ public class Tel extends OpMode {
 
         frontLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         frontRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        m.shooter.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+        m.shooter2.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
         backLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-
+        scula.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         follower = Constants.createFollower(hardwareMap);
 
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
@@ -164,6 +166,9 @@ public class Tel extends OpMode {
         m.turelaS.setPosition(0.5);
         m.turelaD.setPosition(0.5);
         turelaPos = 0.5;
+
+        //PIDFCoefficients PID = new PIDFCoefficients(80, 0.050, 5,15.50);
+        //scula.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, PID);
     }
 
     public void start() {
@@ -175,6 +180,9 @@ public class Tel extends OpMode {
         Sortare.start();
         Shooter.start();
     }
+    private boolean lastPlus = false;
+    private boolean lastMinus = false;
+    private double velStep = 25;
 
     private final Thread Butoane = new Thread(new Runnable() {
         @Override
@@ -186,6 +194,16 @@ public class Tel extends OpMode {
                     break;
                 }
                 posU = m.unghiS.getPosition();
+                boolean plus = gamepad2.y;  // + viteza
+                boolean minus = gamepad2.x;  // - viteza
+
+                if (plus && !lastPlus) targetShooterVelocity += velStep;
+                if (minus && !lastMinus) targetShooterVelocity -= velStep;
+
+                lastPlus = plus;
+                lastMinus = minus;
+
+                targetShooterVelocity = Math.max(0, Math.min(3000, targetShooterVelocity));
 
                 // Turela toggle
                 boolean dpad_right1 = gamepad2.right_bumper;
@@ -221,8 +239,11 @@ public class Tel extends OpMode {
                 if (gamepad1.dpad_down) {
                     posU -= 0.003;
                 }
+                posU = Math.max(0, Math.min(1, posU));
+
                 m.unghiD.setPosition(posU);
                 m.unghiS.setPosition(posU);
+
 
                 if (gamepad2.dpad_left) {
                     idTag = 21;
@@ -435,8 +456,8 @@ public class Tel extends OpMode {
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
-                    m.shooter.setVelocity(targetShooterVelocity);
-                    m.shooter2.setVelocity(targetShooterVelocity);
+                    m.shooter.setVelocity(-targetShooterVelocity);
+                    m.shooter2.setVelocity(-targetShooterVelocity);
 
                     if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
@@ -527,7 +548,7 @@ public class Tel extends OpMode {
 
         private void rapidFireShoot() {
             double lastPos = m.sortare.getPosition();
-
+            scula.setPower(-1);
             if (slotOcupat[0]) {//1 2 3
                 double target = getTarget(0);
                 m.sortare.setPosition(target);
@@ -648,7 +669,7 @@ public class Tel extends OpMode {
     @Override
     public void loop() {
         int detected = m.detecteazaBiloaca();
-
+        bascula.setPosition(0.62);
         String colorN;
         if (detected == 0) {
             colorN = "verde";
@@ -674,7 +695,7 @@ public class Tel extends OpMode {
             telemetry.addData("Slot " + (i + 1), status);
         }
         telemetry.addData("id", idTag);
-        telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
+        //telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
         telemetry.addData("shooter2", m.shooter2.getCurrent(CurrentUnit.AMPS));
         telemetry.addData("Total biloace", getLoculete());
         telemetry.addData("turela", m.turelaD.getPosition());
@@ -688,6 +709,19 @@ public class Tel extends OpMode {
         telemetry.addData("Pinpoint Status", pinpoint != null ? pinpoint.getDeviceStatus().toString() : "N/A");
         telemetry.addLine("dpad_down=Recalibrate IMU | dpad_left=Reset Heading");
         telemetry.addData("y", currentY);
+        double v1 = m.shooter.getVelocity();
+        double v2 = m.shooter2.getVelocity();
+        double vAvg = (v1 + v2) / 2.0;
+        telemetry.addData("mode1", m.shooter.getMode());
+        telemetry.addData("mode2", m.shooter2.getMode());
+
+        telemetry.addData("Fly v1", "%.0f", v1);
+        telemetry.addData("Fly v2", "%.0f", v2);
+        telemetry.addData("Fly avg", "%.0f", vAvg);
+        telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("Hood pos", "%.4f", m.unghiS.getPosition()); // sau posU
+
+
         telemetry.update();
     }
 
