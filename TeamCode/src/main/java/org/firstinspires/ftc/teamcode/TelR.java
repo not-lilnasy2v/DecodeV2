@@ -8,6 +8,7 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
@@ -19,12 +20,15 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import java.util.List;
 @TeleOp(name = "Main Rosu")
 @Configurable
 public class TelR extends OpMode {
-    private DcMotorEx frontRight, frontLeft, backRight, backLeft;
+    private DcMotorEx frontRight, frontLeft, backRight, backLeft,scula;
+    private ServoImplEx bascula;
+
     private Limelight3A limelight;
     private GoBildaPinpointDriver pinpoint;
 
@@ -39,13 +43,11 @@ public class TelR extends OpMode {
 
     private static double TargetX = 147;
     private static double TargetY = 144;
-    private double currentY, currentX;
-    public static double DEADBAND = 0.001;  // Redus pentru precizie la distanță
+    //private double currentY, currentX;
+    public static double DEADBAND = 0.001;// Redus pentru precizie la distanta
     private double ultimaPozitie = 0.5;
     private ElapsedTime pidTimer = new ElapsedTime();
-
     private static double voltajeNominale = 12.68;
-
 
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false,Touch = false,trouch=false;
     private double ledistante, posU;
@@ -99,9 +101,11 @@ public class TelR extends OpMode {
     }
 
     private void resetHeadingToZero() {
-        if (follower != null) {
-            Pose current = follower.getPose();
-            follower.setPose(new Pose(current.getX(), current.getY(), 0));
+        synchronized (blocat) {
+            if (follower != null) {
+                Pose current = follower.getPose();
+                follower.setPose(new Pose(current.getX(), current.getY(), 0));
+            }
         }
     }
 
@@ -126,6 +130,9 @@ public class TelR extends OpMode {
     @Override
     public void init() {
         m.initsisteme(hardwareMap);
+        scula = hardwareMap.get(DcMotorEx.class, "scula");
+        bascula = hardwareMap.get(ServoImplEx.class, "bascula");
+
         frontLeft = hardwareMap.get(DcMotorEx.class, "frontLeft");
         backLeft = hardwareMap.get(DcMotorEx.class, "backLeft");
         frontRight = hardwareMap.get(DcMotorEx.class, "frontRight");
@@ -143,7 +150,7 @@ public class TelR extends OpMode {
         frontRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backLeft.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
         backRight.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
-
+        scula.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         follower = Constants.createFollower(hardwareMap);
 
         Pose startingPose = new Pose(RobotPozitie.X, RobotPozitie.Y, RobotPozitie.heading);
@@ -156,7 +163,12 @@ public class TelR extends OpMode {
         ElapsedTime calibrationTimer = new ElapsedTime();
         while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
                 && calibrationTimer.milliseconds() < 1000) {
+            try { Thread.sleep(10); } catch (InterruptedException ignored) {}
         }
+
+        /*while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
+                && calibrationTimer.milliseconds() < 1000) {
+        }*/
 
         applyVoltageCompensatedPIDF();
 
@@ -171,6 +183,8 @@ public class TelR extends OpMode {
 
 
     public void start() {
+        /// false explicit
+        stop=false;
         follower.update();
         pidTimer.reset();
         Chassis.start();
@@ -207,8 +221,6 @@ public class TelR extends OpMode {
                     }
                     turelaTracking = dpad_right1;
                 }
-
-
 
                 if (gamepad1.dpad_up) {
                     posU += 0.003;
@@ -288,6 +300,8 @@ public class TelR extends OpMode {
             }
         }
     });
+    private volatile double currentH, currentX,currentY;
+
 
     private final Thread Turela = new Thread(new Runnable() {
         @Override
@@ -298,12 +312,14 @@ public class TelR extends OpMode {
                 } catch (InterruptedException e) {
                     break;
                 }
-                follower.update();
-                Pose currentPose = follower.getPose();
-
+                Pose currentPose;
+                synchronized (blocat) {
+                    follower.update();
+                    currentPose = follower.getPose();
+                }
                 currentX = currentPose.getX();
                 currentY = currentPose.getY();
-                double currentH = currentPose.getHeading();
+                currentH = currentPose.getHeading();
 
                 if (tracking) {
 //                    if (currentY > 70){
@@ -353,11 +369,12 @@ public class TelR extends OpMode {
                 synchronized (blocat) {
                     int loculete = getLoculete();
 
+                    ledistante = m.distanta.getDistance(DistanceUnit.CM);
+
                     if (Ipornit && !trageShooting && loculete < 3 && !gamepad1.b) {
                         sugere = true;
                         m.intake.setPower(1);
 
-                        ledistante = m.distanta.getDistance(DistanceUnit.CM);
 
                         if (m.bilaPrezenta(ledistante)) {
                             int detectedColor = m.detecteazaBiloaca();
@@ -416,6 +433,7 @@ public class TelR extends OpMode {
             }
         }
     });
+
 
     private int[] cPattern = new int[3];
     private double targetShooterVelocity = 1650;
@@ -512,8 +530,7 @@ public class TelR extends OpMode {
 
         private void rapidFireShoot() {
             double lastPos = m.sortare.getPosition();
-
-
+            scula.setPower(-1);
             if (slotOcupat[0]) {//1 2 3
                 double target = getTarget(0);
                 m.sortare.setPosition(target);
@@ -612,7 +629,8 @@ public class TelR extends OpMode {
             }
         }
     });
-
+    /// am pus override
+    @Override
     public void stop() {
         stop = true;
         if (limelight != null) {
@@ -623,7 +641,7 @@ public class TelR extends OpMode {
     @Override
     public void loop() {
         int detected = m.detecteazaBiloaca();
-
+        bascula.setPosition(0.62);
         String colorN;
         if (detected == 0) {
             colorN = "verde";
@@ -635,20 +653,24 @@ public class TelR extends OpMode {
         telemetry.addData("detectat", colorN);
         telemetry.addLine("");
 
-        for (int i = 0; i < 3; i++) {
-            String status;
-            if (!slotOcupat[i]) {
-                status = "cheala ca Miklos";
-            } else if (slotColor[i] == 0) {
-                status = "verde";
-            } else if (slotColor[i] == 1) {
-                status = "mov";
-            } else {
-                status = "?";
+        synchronized (blocat) {
+            for (int i = 0; i < 3; i++) {
+                String status;
+                if (!slotOcupat[i]) {
+                    status = "cheala ca Miklos";
+                } else if (slotColor[i] == 0) {
+                    status = "verde";
+                } else if (slotColor[i] == 1) {
+                    status = "mov";
+                } else {
+                    status = "?";
+                }
+                telemetry.addData("Slot " + (i + 1), status);
             }
-            telemetry.addData("Slot " + (i + 1), status);
+            telemetry.addData("Total biloace", getLoculete());
+
         }
-        telemetry.addData("id",idTag);
+        telemetry.addData("id", idTag);
         telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
         telemetry.addData("shooter2", m.shooter2.getCurrent(CurrentUnit.AMPS));
         telemetry.addData("Total biloace", getLoculete());
@@ -659,13 +681,23 @@ public class TelR extends OpMode {
         telemetry.addLine("");
         telemetry.addData("Tracking", tracking ? "ON (Odometry)" : "OFF");
         telemetry.addLine("");
-        telemetry.addData("Heading (deg)", "%.2f", Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.addData("Heading (deg)", "%.2f", Math.toDegrees(currentH));
         telemetry.addData("Pinpoint Status", pinpoint != null ? pinpoint.getDeviceStatus().toString() : "N/A");
         telemetry.addLine("dpad_down=Recalibrate IMU | dpad_right=Reset Heading");
         telemetry.addData("y", currentY);
+        double v1 = m.shooter.getVelocity();
+        double v2 = m.shooter2.getVelocity();
+        double vAvg = (v1 + v2) / 2.0;
+        telemetry.addData("mode1", m.shooter.getMode());
+        telemetry.addData("mode2", m.shooter2.getMode());
+
+        telemetry.addData("Fly v1", v1);
+        telemetry.addData("Fly v2", v2);
+        telemetry.addData("Fly avg", vAvg);
+        telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
+        telemetry.addData("Hood pos", m.unghiS.getPosition());
         telemetry.update();
     }
-
     public void POWER(double fr1, double bl1, double br1, double fl1) {
         frontRight.setPower(fr1);
         backLeft.setPower(bl1);
@@ -677,5 +709,4 @@ public class TelR extends OpMode {
         while (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
     }
-
 }
