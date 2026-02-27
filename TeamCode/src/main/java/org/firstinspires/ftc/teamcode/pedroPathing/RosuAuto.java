@@ -25,21 +25,20 @@ public class RosuAuto extends OpMode {
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
     private static final double TARGET_X = 144;
-    private static final double TARGET_Y = 144;
-
+    private static final double TARGET_Y = 167;
     private final Pose startPose = new Pose(120.35855054036871, 127.40143772311603, Math.toRadians(37));
-    private final Pose tragere1 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
-    private final Pose aluat1 = new Pose(120.51322803071056, 88.17702577143136, Math.toRadians(0));
+    private final Pose tragere1 = new Pose(84.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose aluat1 = new Pose(120.51322803071056, 87.17702577143136, Math.toRadians(0));
     private final Pose ARatat1 = new Pose(80.55254387312878, 67.32287653839902, Math.toRadians(0));
-    private final Pose tras1 = new Pose(80.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose tras1 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
     private final Pose aduna2 = new Pose(72.35664335664335, 55.374125874125866, Math.toRadians(0));
-    private final Pose aluat2 = new Pose(125.8479143234388,58.70247933884299, Math.toRadians(0));
+    private final Pose aluat2 = new Pose(125.8479143234388,57.40247933884299, Math.toRadians(0));
     private final Pose ARatat2 = new Pose(78.26223776223776, 48.31818181818181, Math.toRadians(0));
-    private final Pose tras2 = new Pose(80.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose tras2 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
     private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
     private final Pose aluat3 = new Pose(125.1163333170326, 37.5416401780038 , Math.toRadians(0));
-    private final Pose tras3 = new Pose(80.16783216783216,96.5874125874126,Math.toRadians(0));
-    private final Pose returnToBase = new Pose(117.42657342657343,95.67832167832168,Math.toRadians(0));
+    private final Pose tras3 = new Pose(83.16783216783216,96.5874125874126,Math.toRadians(0));
+    private final Pose returnToBase = new Pose(118.42657342657343,95.67832167832168,Math.toRadians(0));
 
 
     private Path scorePreload;
@@ -49,10 +48,13 @@ public class RosuAuto extends OpMode {
     private int ballshoot = 0;
     private int ShootingStare = 0;
     private boolean shooterPreparado = false;
+    private int flushSlot = 2;
+    private int flushRound = 0;
+    private long velocityCheckStart = 0;
 
     private volatile boolean[] slotOcupat = new boolean[3];
 
-    private int getLoculete() {
+    private synchronized int getLoculete() {
         int count = 0;
         for (boolean occupied : slotOcupat) {
             if (occupied) count++;
@@ -117,38 +119,33 @@ public class RosuAuto extends OpMode {
 
     private void pregatireShooter() {
         if (!shooterPreparado) {
-            PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
-            n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-            n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
+            n.applyVoltageCompensatedPIDF();
             n.shooter.setVelocity(1550);
             n.shooter2.setVelocity(1550);
-            n.unghiS.setPosition(pop.posUnghi);
             n.unghiD.setPosition(pop.posUnghi);
             shooterPreparado = true;
         }
     }
 
     private int currentShootSlot = 2;
+    private static final double SHOOTER_VEL = 1550;
 
     private void TragereLaPupitru() {
         switch (ShootingStare) {
             case 0:
-                // 3 bile fara verificare
                 ballshoot = 3;
                 currentShootSlot = 2;
+                n.scula.setPower(-1);
+                n.bascula.setPosition(Pozitii.lansare);
                 if (!shooterPreparado) {
-                    PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
-                    n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                    n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                    n.shooter.setVelocity(1550);
-                    n.shooter2.setVelocity(1550);
-                    n.unghiS.setPosition(pop.posUnghi);
+                    n.applyVoltageCompensatedPIDF();
+                    n.shooter.setVelocity(SHOOTER_VEL);
+                    n.shooter2.setVelocity(SHOOTER_VEL);
                     n.unghiD.setPosition(pop.posUnghi);
                     actionTimer.resetTimer();
                     ShootingStare = 1;
                 } else {
-                    actionTimer.resetTimer();
-                    ShootingStare = 13;
+                    ShootingStare = 3;
                 }
                 track();
                 break;
@@ -157,94 +154,163 @@ public class RosuAuto extends OpMode {
                 track();
                 if (actionTimer.getElapsedTimeSeconds() >= 0.35) {
                     actionTimer.resetTimer();
-                    ShootingStare = 13;
+                    ShootingStare = 2;
                 }
                 break;
 
-
             case 2:
-                // 3 sloturile fara verificare
-                if (currentShootSlot >= 0) {
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 1.0) {
                     ShootingStare = 3;
-                } else {
-                    ShootingStare = 10;
                 }
                 break;
 
             case 3:
-                double target;
-                if (currentShootSlot == 0) {
-                    target = Pozitii.aruncare1;
-                } else if (currentShootSlot == 1) {
-                    target = Pozitii.aruncare2;
+                if (currentShootSlot >= 0) {
+                    ShootingStare = 4;
                 } else {
-                    target = Pozitii.aruncare3;
+                    flushSlot = 2;
+                    flushRound = 0;
+                    n.intake.setPower(1);
+                    ShootingStare = 11;
                 }
-                n.sortare.setPosition(target);
-                actionTimer.resetTimer();
-                ShootingStare = 4;
                 break;
 
             case 4:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 0.40) {
-                    ShootingStare = 5;
-                }
+                double target;
+                if (currentShootSlot == 0) target = Pozitii.aruncare1;
+                else if (currentShootSlot == 1) target = Pozitii.aruncare2;
+                else target = Pozitii.aruncare3;
+                n.sortare.setPosition(target);
+                actionTimer.resetTimer();
+                ShootingStare = 5;
                 break;
 
             case 5:
-                n.Saruncare.setPosition(Pozitii.lansare);
-                actionTimer.resetTimer();
-                ShootingStare = 6;
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                    velocityCheckStart = System.currentTimeMillis();
+                    ShootingStare = 6;
+                }
                 break;
 
             case 6:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                track();
+                double v1 = Math.abs(n.shooter.getVelocity());
+                double v2 = Math.abs(n.shooter2.getVelocity());
+                double tol = SHOOTER_VEL * 0.03;
+                if ((Math.abs(v1 - SHOOTER_VEL) < tol && Math.abs(v2 - SHOOTER_VEL) < tol)
+                        || (System.currentTimeMillis() - velocityCheckStart) > 500) {
                     ShootingStare = 7;
                 }
                 break;
 
             case 7:
-                n.Saruncare.setPosition(Pozitii.coborare);
                 actionTimer.resetTimer();
                 ShootingStare = 8;
                 break;
 
             case 8:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
-                    slotOcupat[currentShootSlot] = false;
-                    currentShootSlot--;
-                    ShootingStare = 2;
+                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                    ShootingStare = 9;
                 }
+                break;
+
+            case 9:
+                actionTimer.resetTimer();
+                ShootingStare = 10;
                 break;
 
             case 10:
-                n.sortare.setPosition(Pozitii.luarea1);
-                actionTimer.resetTimer();
-                ShootingStare = 11;
-                break;
-
-            case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
-                    n.shooter.setVelocity(750);
-                    n.shooter2.setVelocity(750);
-                    ShootingStare = 12;
+                if (actionTimer.getElapsedTimeSeconds() >= 0.09) {
+                    slotOcupat[currentShootSlot] = false;
+                    currentShootSlot--;
+                    ShootingStare = 3;
                 }
                 break;
 
+            case 11:
+                double flushTarget;
+                if (flushSlot == 0) flushTarget = Pozitii.aruncare1;
+                else if (flushSlot == 1) flushTarget = Pozitii.aruncare2;
+                else flushTarget = Pozitii.aruncare3;
+                n.sortare.setPosition(flushTarget);
+                actionTimer.resetTimer();
+                ShootingStare = 12;
+                break;
+
             case 12:
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 0.25) {
+                    ShootingStare = 13;
+                }
+                break;
+
+            case 13:
+                actionTimer.resetTimer();
+                ShootingStare = 14;
+                break;
+
+            case 14:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                    ShootingStare = 15;
+                }
+                break;
+
+            case 15:
+                actionTimer.resetTimer();
+                ShootingStare = 16;
+                break;
+
+            case 16:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.09) {
+                    flushSlot--;
+                    if (flushSlot >= 0) {
+                        ShootingStare = 11;
+                    } else {
+                        actionTimer.resetTimer();
+                        ShootingStare = 17;
+                    }
+                }
+                break;
+
+            case 17:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
+                    double dist = n.distanta.getDistance(DistanceUnit.CM);
+                    if (dist < 20 && flushRound < 2) {
+                        flushRound++;
+                        flushSlot = 2;
+                        ShootingStare = 11;
+                    } else {
+                        ShootingStare = 18;
+                    }
+                }
+                break;
+
+            case 18:
+                n.bascula.setPosition(Pozitii.sede);
+                n.scula.setPower(0);
+                n.intake.setPower(0);
+                n.sortare.setPosition(Pozitii.luarea1);
+                actionTimer.resetTimer();
+                ShootingStare = 19;
+                break;
+
+            case 19:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
+                    n.shooter.setVelocity(750);
+                    n.shooter2.setVelocity(750);
+                    ShootingStare = 20;
+                }
+                break;
+
+            case 20:
                 slotOcupat[0] = false;
                 slotOcupat[1] = false;
                 slotOcupat[2] = false;
                 TragereInProgres = false;
                 shooterPreparado = false;
                 ShootingStare = 0;
-                break;
-            case 13:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 0.45) {
-                    ShootingStare = 2;
-                }
                 break;
         }
     }
@@ -260,6 +326,7 @@ public class RosuAuto extends OpMode {
             @Override
             public void run() {
                 while (!stop) {
+                    try { Thread.sleep(10); } catch (InterruptedException e) { break; }
                     int loculete = getLoculete();
                     if (intakePornit && loculete < 3) {
                         n.intake.setPower(1);
@@ -396,7 +463,7 @@ public class RosuAuto extends OpMode {
                 slotOcupat[2] = false;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
-                follower.followPath(collectare2,0.75,false);
+                follower.followPath(collectare2,0.85,false);
                 setPathState(9);
                 break;
 
@@ -455,7 +522,7 @@ public class RosuAuto extends OpMode {
                 slotOcupat[2] = false;
                 n.sortare.setPosition(Pozitii.luarea1);
                 intakePornit = true;
-                follower.followPath(collectare3,0.70,false);
+                follower.followPath(collectare3,0.85,false);
                 setPathState(15);
                 break;
 
@@ -527,7 +594,7 @@ public class RosuAuto extends OpMode {
                     slotOcupat[2] = false;
                     n.sortare.setPosition(Pozitii.luarea1);
                     intakePornit = true;
-                    follower.followPath(collectare1,0.75,false);
+                    follower.followPath(collectare1,0.9,false);
 
                     setPathState(3);
                 }
@@ -605,8 +672,6 @@ public class RosuAuto extends OpMode {
 
     private void track() {
         n.tracks(follower, TARGET_X, TARGET_Y);
-//        n.turelaD.setPosition(0.77);
-//        n.turelaS.setPosition(0.77);
     }
 
 
@@ -654,6 +719,7 @@ public class RosuAuto extends OpMode {
         slotOcupat[1] = true;
         slotOcupat[2] = true;
 
+        n.limelight.pipelineSwitch(2);
         n.resetTurelaPID();
 
         Intake();
@@ -672,5 +738,7 @@ public class RosuAuto extends OpMode {
         n.shooter.setVelocity(0);
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
+        n.scula.setPower(0);
+        n.bascula.setPosition(0.5807);
     }
 }

@@ -14,9 +14,9 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.teamcode.NouHard.ServoImplExEx;
 
 public class sistemeTeleOp {
-    public DcMotorEx shooter, intake, shooter2;
-    public ServoImplExEx Saruncare, sortare, unghiD, unghiS, turelaS, turelaD;
-
+    public DcMotorEx shooter, intake, shooter2,scula;
+    public ServoImplExEx bascula, sortare, unghiD, turelaS, turelaD;
+//    public ServoImplExEx Saruncare;
     public DistanceSensor distanta;
     public VoltageSensor voltageSensor;
     public NormalizedColorSensor colors;
@@ -50,32 +50,32 @@ public class sistemeTeleOp {
         turelaD.setMinPosition(0);
         turelaS.setMaxPosition(1);
         turelaD.setMaxPosition(1);
-        turelaS.setPosition(0.5);
-        turelaD.setPosition(0.5);
+//        turelaS.setPosition(0.5);
+//        turelaD.setPosition(0.5);
 
         shooter = hard.get(DcMotorEx.class, "shooter");
         shooter2 = hard.get(DcMotorEx.class, "shooter2");
         shooter.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
         shooter.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        shooter.setDirection(DcMotorEx.Direction.FORWARD);
+        shooter.setDirection(DcMotorEx.Direction.REVERSE);
 
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        shooter2.setDirection(DcMotorEx.Direction.REVERSE);
+        shooter2.setDirection(DcMotorEx.Direction.FORWARD);
 
-        Saruncare = ServoImplExEx.get(hard, "aruncare");
-        Saruncare.setPosition(Pozitii.coborare);
+        bascula = ServoImplExEx.get(hard, "bascula");
+        bascula.setPosition(Pozitii.sede);
+
+        scula = hard.get(DcMotorEx.class, "scula");
+        scula.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+//        Saruncare = ServoImplExEx.get(hard, "aruncare");
+//        Saruncare.setPosition(Pozitii.coborare);
         sortare = ServoImplExEx.get(hard, "sortare");
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
-        unghiS = ServoImplExEx.get(hard, "unghiS");
-        unghiS.setPosition(0.27);
+        unghiD.setMinPosition(0.127);
+        unghiD.setMaxPosition(0.445);
         unghiD.setPosition(0.27);
-        unghiD.setMinPosition(0.12);
-        unghiS.setMinPosition(0.12);
-        unghiS.setMaxPosition(0.41);
-        unghiD.setMaxPosition(0.41);
-
 
         distanta = hard.get(DistanceSensor.class, "distanta");
 

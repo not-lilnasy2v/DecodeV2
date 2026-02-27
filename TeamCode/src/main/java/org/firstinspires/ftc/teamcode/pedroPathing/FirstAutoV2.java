@@ -119,7 +119,6 @@ public class FirstAutoV2 extends OpMode {
             n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
             n.shooter.setVelocity(1450);
             n.shooter2.setVelocity(1450);
-            n.unghiS.setPosition(pop.posUnghi);
             n.unghiD.setPosition(pop.posUnghi);
             shooterPreparado = true;
         }
@@ -136,7 +135,6 @@ public class FirstAutoV2 extends OpMode {
                     n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
                     n.shooter.setVelocity(1450);
                     n.shooter2.setVelocity(1450);
-                    n.unghiS.setPosition(pop.posUnghi);
                     n.unghiD.setPosition(pop.posUnghi);
                     actionTimer.resetTimer();
                     ShootingStare = 1;

@@ -5,6 +5,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -23,6 +24,7 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import java.util.List;
 @Configurable
+@Disabled
 public class op extends OpMode {
     private DcMotorEx frontRight, frontLeft, backRight, backLeft,scula;
     private ServoImplEx bascula;
@@ -185,7 +187,7 @@ public class op extends OpMode {
         turelaPos = 0.5;
     }
     private void updateButoane(){
-        posU = m.unghiS.getPosition();
+        posU = m.unghiD.getPosition();
 
         if (gamepad1.dpad_right) {
             targetShooterVelocity = 1950;
@@ -215,7 +217,6 @@ public class op extends OpMode {
             posU -= 0.003;
         }
         m.unghiD.setPosition(posU);
-        m.unghiS.setPosition(posU);
         if (gamepad2.dpad_left) {
             idTag = 21;
         }
@@ -466,7 +467,7 @@ public class op extends OpMode {
         switch (shootState) {
             case MOVE_WAIT:
                 if (shootTimer.milliseconds() >= moveWaitMs) {
-                    m.Saruncare.setPosition(Pozitii.lansare);
+//                    m.Saruncare.setPosition(Pozitii.lansare);
                     shootTimer.reset();
                     shootState = ShootState.FIRE_ON;
                 }
@@ -474,7 +475,7 @@ public class op extends OpMode {
 
             case FIRE_ON:
                 if (shootTimer.milliseconds() >= 130) {
-                    m.Saruncare.setPosition(Pozitii.coborare);
+//                    m.Saruncare.setPosition(Pozitii.coborare);
                     shootTimer.reset();
                     shootState = ShootState.FIRE_OFF;
                 }
@@ -674,7 +675,7 @@ public class op extends OpMode {
         telemetry.addData("Fly v2", v2);
         telemetry.addData("Fly avg", vAvg);
         telemetry.addData("shooter", m.shooter.getCurrent(CurrentUnit.AMPS));
-        telemetry.addData("Hood pos", m.unghiS.getPosition());
+        telemetry.addData("Hood pos", m.unghiD.getPosition());
         telemetry.update();
     }
     public void POWER(double fr1, double bl1, double br1, double fl1) {

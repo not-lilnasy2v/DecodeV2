@@ -24,17 +24,17 @@ public class AproapeRosu extends OpMode {
     public Follower follower;
     private Timer pathTimer, actionTimer, opmodeTimer;
     private int pathState;
-    private static final double TARGET_X = 144;
-    private static final double TARGET_Y = 135;
+    private static final double TARGET_X = 167;
+    private static final double TARGET_Y = 167;
 
     private final Pose startPose = new Pose(88, 8, Math.toRadians(90));
     private final Pose shootingPose = new Pose(85.35034965034964, 23.07692307692308, Math.toRadians(90));
-    private final Pose colectare = new Pose(134.54545454545456, 35.75524475524475, Math.toRadians(0));
+    private final Pose colectare = new Pose(130.54545454545456, 35.75524475524475, Math.toRadians(0));
     private final Pose cotrolare = new Pose(81.74272629354311, 40.5307423032044);
     private final Pose corectarelacotrolare = new Pose(103.58734200455321, 34.11270001876771);
     private final Pose tragere2 = new Pose(87.35034965034964, 23.07692307692308, Math.toRadians(90));
     private final Pose luare3 = new Pose(131.9416569428238,34.340723453909014, Math.toRadians(290));
-    private final Pose aluat3 = new Pose(136.41773628938157, 8.250875145857645, Math.toRadians(295));
+    private final Pose aluat3 = new Pose(134.41773628938157, 10.250875145857645, Math.toRadians(295));
     private final Pose tragere3 = new Pose(85.88681446907816,22.516919486581088, Math.toRadians(90));
     private final Pose iesirea = new Pose(107.28773327023034, 10.97982064609837, Math.toRadians(90));
 
@@ -45,6 +45,9 @@ public class AproapeRosu extends OpMode {
     private int ShootingStare = 0;
     private int currentShootSlot = 2;
     private int ballTras = 0;
+    private int flushSlot = 2;
+    private int flushRound = 0;
+    private long velocityCheckStart = 0;
 
     private volatile boolean[] slotOcupat = new boolean[3];
     private volatile int[] slotColor = new int[3];  // 0=verde, 1=mov, -1=ceva de nevazut
@@ -57,6 +60,10 @@ public class AproapeRosu extends OpMode {
     private int idTag = 0;
     private int[] cPattern = new int[3];
     private boolean Pattern = false;
+
+    // Pentru scanare paralela
+    private volatile boolean scanareTerminata = false;
+    private Thread scanThread;
 
     private int getLoculete() {
         synchronized (slot) {
@@ -152,49 +159,56 @@ public class AproapeRosu extends OpMode {
         }
         return true;
     }
-    private void scaneazaPreload() {
-        int Incercari = 5;
-        int attempt = 0;
+    // Porneste scanarea preload in thread separat
+    private void startScaneazaPreloadAsync() {
+        scanareTerminata = false;
+        scanThread = new Thread(() -> {
+            int Incercari = 5;
+            int attempt = 0;
 
-        while (!toateBileleDetectate() && attempt < Incercari) {
-            attempt++;
-            double lastPos = n.sortare.getPosition();
+            while (!toateBileleDetectate() && attempt < Incercari) {
+                attempt++;
+                double lastPos = n.sortare.getPosition();
 
-            for (int i = 0; i < 3; i++) {
-                if (slotOcupat[i] && slotColor[i] == -1) {
-                    double targetPos = getLuarePos(i);
+                for (int i = 0; i < 3; i++) {
+                    if (slotOcupat[i] && slotColor[i] == -1) {
+                        double targetPos = getLuarePos(i);
 
-                    n.sortare.setPosition(targetPos);
+                        n.sortare.setPosition(targetPos);
 
-                    double dist = Math.abs(targetPos - lastPos);
-                    int moveWait = (int)(dist * 550) + 150;
-                    n.kdf(moveWait);
+                        double dist = Math.abs(targetPos - lastPos);
+                        int moveWait = (int)(dist * 550) + 150;
+                        n.kdf(moveWait);
 
-                    for (int retry = 0; retry < 3 && slotColor[i] == -1; retry++) {
-                        n.resetareDetection();
-                        slotColor[i] = n.detecteazaBiloaca();
-                        if (slotColor[i] == -1) {
-                            n.kdf(80);
+                        for (int retry = 0; retry < 3 && slotColor[i] == -1; retry++) {
+                            n.resetareDetection();
+                            slotColor[i] = n.detecteazaBiloaca();
+                            if (slotColor[i] == -1) {
+                                n.kdf(80);
+                            }
                         }
-                    }
 
-                    lastPos = targetPos;
+                        lastPos = targetPos;
+                    }
                 }
             }
-        }
 
-        if (Pattern) {
-            int firstColor = cPattern[0];
-            int firstSlot = gasesteBilaCuCuloare(firstColor);
-            if (firstSlot != -1) {
-                n.sortare.setPosition(getAruncarePos(firstSlot));
+            // Pune sortare la pozitia de aruncare
+            if (Pattern) {
+                int firstColor = cPattern[0];
+                int firstSlot = gasesteBilaCuCuloare(firstColor);
+                if (firstSlot != -1) {
+                    n.sortare.setPosition(getAruncarePos(firstSlot));
+                } else {
+                    n.sortare.setPosition(Pozitii.aruncare3);
+                }
             } else {
                 n.sortare.setPosition(Pozitii.aruncare3);
             }
-        } else {
-            n.sortare.setPosition(Pozitii.aruncare3);
-        }
-        n.kdf(200);
+
+            scanareTerminata = true;
+        });
+        scanThread.start();
     }
 
     private void detecteazaPattern() {
@@ -241,106 +255,194 @@ public class AproapeRosu extends OpMode {
         return Pozitii.aruncare3;
     }
 
+    private static final double SHOOTER_VEL = 1850;
+
     private void TragereLaPupitru() {
         switch (ShootingStare) {
             case 0:
-                PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
-                n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                n.shooter.setVelocity(1850);
-                n.shooter2.setVelocity(1850);
-                n.unghiS.setPosition(pop.posUnghi);
+                n.applyVoltageCompensatedPIDF();
+                n.shooter.setVelocity(SHOOTER_VEL);
+                n.shooter2.setVelocity(SHOOTER_VEL);
                 n.unghiD.setPosition(pop.posUnghi);
+                n.scula.setPower(-1);
+                n.bascula.setPosition(Pozitii.sede);
                 actionTimer.resetTimer();
                 ShootingStare = 1;
                 break;
 
             case 1:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.35) {
+                    actionTimer.resetTimer();
                     ShootingStare = 2;
                 }
                 break;
 
             case 2:
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 1.0) {
+                    ShootingStare = 3;
+                }
+                break;
+
+            case 3:
                 ballTras = getLoculete();
                 if (ballTras > 0) {
                     if (Pattern) {
                         int patternIndex = Math.max(0, Math.min(2, 3 - ballTras));
                         currentShootSlot = gasesteBilaCuCuloare(cPattern[patternIndex]);
                     } else {
-                        // Rapid fire - de la slot 2 în jos
                         currentShootSlot = 2;
                         while (currentShootSlot >= 0 && !slotOcupat[currentShootSlot]) {
                             currentShootSlot--;
                         }
                     }
-
                     if (currentShootSlot >= 0) {
-                        ShootingStare = 3;
+                        ShootingStare = 4;
                     } else {
-                        ShootingStare = 9;
+                        flushSlot = 2;
+                        flushRound = 0;
+                        n.bascula.setPosition(Pozitii.lansare);
+                        n.intake.setPower(1);
+                        ShootingStare = 11;
                     }
                 } else {
-                    ShootingStare = 9;
+                    flushSlot = 2;
+                    flushRound = 0;
+                    n.bascula.setPosition(Pozitii.lansare);
+                    n.intake.setPower(1);
+                    ShootingStare = 11;
                 }
-                break;
-
-            case 3:
-                n.sortare.setPosition(getAruncarePos(currentShootSlot));
-                actionTimer.resetTimer();
-                ShootingStare = 4;
                 break;
 
             case 4:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.95) {
-                    ShootingStare = 5;
-                }
+                n.sortare.setPosition(getAruncarePos(currentShootSlot));
+                actionTimer.resetTimer();
+                ShootingStare = 5;
                 break;
 
             case 5:
-                n.Saruncare.setPosition(Pozitii.lansare);
-                actionTimer.resetTimer();
-                ShootingStare = 6;
+                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                    velocityCheckStart = System.currentTimeMillis();
+                    ShootingStare = 6;
+                }
                 break;
 
             case 6:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
+                track();
+                double v1 = Math.abs(n.shooter.getVelocity());
+                double v2 = Math.abs(n.shooter2.getVelocity());
+                double tol = SHOOTER_VEL * 0.03;
+                if ((Math.abs(v1 - SHOOTER_VEL) < tol && Math.abs(v2 - SHOOTER_VEL) < tol)
+                        || (System.currentTimeMillis() - velocityCheckStart) > 500) {
                     ShootingStare = 7;
                 }
                 break;
 
             case 7:
-                n.Saruncare.setPosition(Pozitii.coborare);
+                n.bascula.setPosition(Pozitii.lansare);
                 actionTimer.resetTimer();
                 ShootingStare = 8;
                 break;
 
             case 8:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
-                    synchronized (slot) {
-                        slotOcupat[currentShootSlot] = false;
-                        slotColor[currentShootSlot] = -1;
-                    }
-                    ballTras--;
-                    ShootingStare = 2;
+                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                    ShootingStare = 9;
                 }
                 break;
 
             case 9:
-                n.sortare.setPosition(Pozitii.luarea1);
+                n.bascula.setPosition(Pozitii.sede);
                 actionTimer.resetTimer();
                 ShootingStare = 10;
                 break;
 
             case 10:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    n.shooter.setVelocity(0);
-                    n.shooter2.setVelocity(0);
-                    ShootingStare = 11;
+                if (actionTimer.getElapsedTimeSeconds() >= 0.10) {
+                    synchronized (slot) {
+                        slotOcupat[currentShootSlot] = false;
+                        slotColor[currentShootSlot] = -1;
+                    }
+                    ballTras--;
+                    ShootingStare = 3;
                 }
                 break;
 
             case 11:
+                double flushTarget;
+                if (flushSlot == 0) flushTarget = Pozitii.aruncare1;
+                else if (flushSlot == 1) flushTarget = Pozitii.aruncare2;
+                else flushTarget = Pozitii.aruncare3;
+                n.sortare.setPosition(flushTarget);
+                actionTimer.resetTimer();
+                ShootingStare = 12;
+                break;
+
+            case 12:
+                track();
+                if (actionTimer.getElapsedTimeSeconds() >= 0.25) {
+                    ShootingStare = 13;
+                }
+                break;
+
+            case 13:
+                actionTimer.resetTimer();
+                ShootingStare = 14;
+                break;
+
+            case 14:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                    ShootingStare = 15;
+                }
+                break;
+
+            case 15:
+                actionTimer.resetTimer();
+                ShootingStare = 16;
+                break;
+
+            case 16:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.09) {
+                    flushSlot--;
+                    if (flushSlot >= 0) {
+                        ShootingStare = 11;
+                    } else {
+                        actionTimer.resetTimer();
+                        ShootingStare = 17;
+                    }
+                }
+                break;
+
+            case 17:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
+                    double dist = n.distanta.getDistance(org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM);
+                    if (dist < 20 && flushRound < 2) {
+                        flushRound++;
+                        flushSlot = 2;
+                        ShootingStare = 11;
+                    } else {
+                        ShootingStare = 18;
+                    }
+                }
+                break;
+
+            case 18:
+                n.bascula.setPosition(Pozitii.sede);
+                n.scula.setPower(0);
+                n.intake.setPower(0);
+                n.sortare.setPosition(Pozitii.luarea1);
+                actionTimer.resetTimer();
+                ShootingStare = 19;
+                break;
+
+            case 19:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
+                    n.shooter.setVelocity(0);
+                    n.shooter2.setVelocity(0);
+                    ShootingStare = 20;
+                }
+                break;
+
+            case 20:
                 synchronized (slot) {
                     slotOcupat[0] = false;
                     slotOcupat[1] = false;
@@ -426,13 +528,15 @@ public class AproapeRosu extends OpMode {
             case 0:
                 detecteazaPattern();
                 follower.followPath(laShooting);
+                // Porneste scanarea in paralel cu mersul
+                startScaneazaPreloadAsync();
                 setPathState(1);
                 break;
 
             case 1:
-                if (!follower.isBusy()) {
+                // Asteapta si sa ajunga SI sa termine scanarea
+                if (!follower.isBusy() && scanareTerminata) {
                     follower.holdPoint(shootingPose);
-                    scaneazaPreload();
                     setPathState(2);
                 }
                 break;
@@ -454,9 +558,8 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 3:
-                if (actionTimer.getElapsedTimeSeconds() >= 1.5) {
-                    setPathState(4);
-                }
+                // Redus de la 1.5s - trece direct
+                setPathState(4);
                 break;
 
             case 4:
@@ -470,9 +573,8 @@ public class AproapeRosu extends OpMode {
                     IntakeSlot = 0;
                 }
                 n.sortare.setPosition(Pozitii.luarea1);
-                n.kdf(100);
                 intakePornit = true;
-                follower.followPath(iale);
+                follower.followPath(iale,0.7,false);
                 setPathState(5);
                 break;
 
@@ -502,24 +604,14 @@ public class AproapeRosu extends OpMode {
 
             case 7:
                 follower.followPath(tragere);
-
-                verificaSloturiNecunoscute();
-
-                if (Pattern) {
-                    int PrimaCuloare = cPattern[0];
-                    int PrimuSlot = gasesteBilaCuCuloare(PrimaCuloare);
-                    if (PrimuSlot != -1) {
-                        n.sortare.setPosition(getAruncarePos(PrimuSlot));
-                    }
-                } else {
-                    n.sortare.setPosition(Pozitii.aruncare3);
-                }
-
+                // Porneste scanarea in paralel cu mersul
+                startScaneazaPreloadAsync();
                 setPathState(8);
                 break;
 
             case 8:
-                if (!follower.isBusy()) {
+                // Asteapta si sa ajunga SI sa termine scanarea
+                if (!follower.isBusy() && scanareTerminata) {
                     follower.holdPoint(tragere2);
                     setPathState(9);
                 }
@@ -558,7 +650,7 @@ public class AproapeRosu extends OpMode {
                     n.kdf(150);
                     n.intake.setPower(0);
                     intakePornit = true;
-                    follower.followPath(aluattrei);
+                    follower.followPath(aluattrei,0.85,false);
                     setPathState(12);
                 }
                 break;
@@ -589,24 +681,14 @@ public class AproapeRosu extends OpMode {
 
             case 14:
                 follower.followPath(treiTragere);
-
-                verificaSloturiNecunoscute();
-
-                if (Pattern) {
-                    int PrimaCuloare = cPattern[0];
-                    int PrimuSlot = gasesteBilaCuCuloare(PrimaCuloare);
-                    if (PrimuSlot != -1) {
-                        n.sortare.setPosition(getAruncarePos(PrimuSlot));
-                    }
-                } else {
-                    n.sortare.setPosition(Pozitii.aruncare3);
-                }
-
+                // Porneste scanarea in paralel cu mersul
+                startScaneazaPreloadAsync();
                 setPathState(15);
                 break;
 
             case 15:
-                if (!follower.isBusy()) {
+                // Asteapta si sa ajunga SI sa termine scanarea
+                if (!follower.isBusy() && scanareTerminata) {
                     follower.holdPoint(tragere3);
                     setPathState(16);
                 }
@@ -641,6 +723,7 @@ public class AproapeRosu extends OpMode {
         autonomousPathUpdate();
 
         telemetry.addData("Path State", pathState);
+        telemetry.addData("Scanare terminata", scanareTerminata ? "DA" : "NU");
         telemetry.addData("Bile colectate", getLoculete());
         telemetry.addData("Toate detectate", toateBileleDetectate() ? "DA" : "NU");
         telemetry.addLine("");
@@ -702,6 +785,7 @@ public class AproapeRosu extends OpMode {
         stop = false;
         intakePornit = false;
         currentShootSlot = 2;
+        scanareTerminata = false;
 
         slotOcupat[0] = true;
         slotOcupat[1] = true;
@@ -723,6 +807,10 @@ public class AproapeRosu extends OpMode {
     public void stop() {
         stop = true;
 
+        if (scanThread != null) {
+            scanThread.interrupt();
+        }
+
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();
@@ -732,5 +820,7 @@ public class AproapeRosu extends OpMode {
         n.shooter.setVelocity(0);
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
+        n.scula.setPower(0);
+        n.bascula.setPosition(0.5807);
     }
 }
