@@ -32,7 +32,5 @@ public class Pozitii {
 
     public static final float COLOR_SENSOR_GAIN = 3.02f;
 
-    public static final double DISTANCE_CM = 5.0;
-
 
 }
