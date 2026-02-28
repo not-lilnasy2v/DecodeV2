@@ -23,16 +23,14 @@ public class Pozitii {
     // BACKUP sensor: VERDE ~145°, MOV ~260°
     public static final float BACKUP_VERDE_HUE_MIN = 120f;
     public static final float BACKUP_VERDE_HUE_MAX = 170f;
-    public static final float BACKUP_MOV_HUE_MIN = 235f;
-    public static final float BACKUP_MOV_HUE_MAX = 285f;
+    public static final float BACKUP_MOV_HUE_MIN = 200f;
+    public static final float BACKUP_MOV_HUE_MAX = 320f;
 
-    public static final float MIN_SATURATION = 0.15f;
+    public static final float MIN_SATURATION = 0.10f;
 
-    public static final float MIN_VALUE = 0.08f;
+    public static final float MIN_VALUE = 0.05f;
 
-    public static final float COLOR_SENSOR_GAIN = 3.03f;
-
-    public static final double DISTANCE_CM = 5.0;
+    public static final float COLOR_SENSOR_GAIN = 3.02f;
 
 
 }
