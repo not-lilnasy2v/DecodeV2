@@ -101,9 +101,7 @@ public class sistemeTeleOp {
     }
 
     public void kdf(long t) {
-        long lastTime = System.currentTimeMillis();
-        while (lastTime + t > System.currentTimeMillis()) {
-        }
+        try { Thread.sleep(t); } catch (InterruptedException ignored) {}
     }
     public int detecteazaBiloaca() {
         long now = System.currentTimeMillis();

@@ -74,7 +74,6 @@ public class sistemeAuto {
 
         scula = hard.get(DcMotorEx.class, "scula");
         scula.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        scula.setDirection(DcMotorSimple.Direction.REVERSE);
 //        Saruncare = hard.get(ServoImplEx.class, "aruncare");
 //        Saruncare.setPosition(Pozitii.coborare);
         sortare = hard.get(ServoImplEx.class, "sortare");
@@ -113,10 +112,7 @@ public class sistemeAuto {
     }
 
     public void kdf(long t) {
-        long lastTime = System.currentTimeMillis();
-        while (lastTime + t > System.currentTimeMillis()) {
-
-        }
+        try { Thread.sleep(t); } catch (InterruptedException ignored) {}
     }
 
 
@@ -126,23 +122,30 @@ public class sistemeAuto {
         com.pedropathing.geometry.Pose pose = follower.getPose();
         long now = System.nanoTime();
 
+        // Calcul heading rate + velocity (ca in TeleOp)
         double headingRate = 0;
         if (hybridLastTime != 0) {
             double hdt = (now - hybridLastTime) / 1_000_000_000.0;
             if (hdt > 0.005) {
                 headingRate = (pose.getHeading() - hybridLastHeading) / hdt;
+                xVelocity = (pose.getX() - lastPoseX) / hdt;
+                yVelocity = (pose.getY() - lastPoseY) / hdt;
             }
         }
         hybridLastHeading = pose.getHeading();
+        lastPoseX = pose.getX();
+        lastPoseY = pose.getY();
 
-        double dx = targetX - pose.getX();
-        double dy = targetY - pose.getY();
+        // Odometry cu velocity compensation
+        double dx = targetX - (pose.getX() + xVelocity * VEL_LEAD_TIME);
+        double dy = targetY - (pose.getY() + yVelocity * VEL_LEAD_TIME);
         double angleToTarget = Math.atan2(dy, dx);
         double turretAngleRad = angleToTarget - pose.getHeading();
         turretAngleRad = normalizeAngle(turretAngleRad);
         double odomAngle = Math.toDegrees(turretAngleRad) * SCALE_FACTOR;
         odomAngle = Math.max(LIMITA_STANGA_GRADE, Math.min(LIMITA_DREAPTA_GRADE, odomAngle));
 
+        // Limelight
         LLResult result = limelight.getLatestResult();
         hybridLimelightVede = false;
         double tx = 0;
@@ -154,6 +157,7 @@ public class sistemeAuto {
             }
         }
 
+        // Hybrid PID (limelight + odom)
         double targetAngle;
         if (!hybridLimelightVede) {
             llIntegral = 0;
@@ -176,14 +180,17 @@ public class sistemeAuto {
         }
         hybridLastTime = now;
 
+        // Heading rate feedforward
         targetAngle += headingRate * H_FF_GAIN_DEG;
         targetAngle = Math.max(LIMITA_STANGA_GRADE, Math.min(LIMITA_DREAPTA_GRADE, targetAngle));
 
+        // Position PID (servo control) - cu dt corect
         turelaTargetGrade = targetAngle;
         double currentAngle = turelaD.getCurrentAngle();
         double posError = targetAngle - currentAngle;
-        double posDt = (hybridLastTime == 0) ? 0.01 : (now - hybridLastTime) / 1_000_000_000.0;
+        double posDt = (posLastTime == 0) ? 0.01 : (now - posLastTime) / 1_000_000_000.0;
         posDt = Math.max(0.005, posDt);
+        posLastTime = now;
         double posDerivative = (posError - posLastError) / posDt;
         posLastError = posError;
 
@@ -250,7 +257,6 @@ public class sistemeAuto {
         if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) {
             return CULOARE_NIMIC;
         }
-
         if (hue >= Pozitii.MAIN_VERDE_HUE_MIN && hue <= Pozitii.MAIN_VERDE_HUE_MAX) {
             return CULOARE_VERDE;
         }
@@ -310,7 +316,7 @@ public class sistemeAuto {
     private double posLastError = 0;
     private double turelaTargetGrade = 0;
 
-    private static final double voltajeNominale = 13.45;
+    private static final double voltajeNominale = 12.68;
 
     public void applyVoltageCompensatedPIDF() {
         double currentVoltage = voltageSensor.getVoltage();
@@ -328,7 +334,12 @@ public class sistemeAuto {
         posLastError = 0;
         turelaTargetGrade = 0;
         hybridLastTime = 0;
+        posLastTime = 0;
         hybridLastHeading = 0;
+        xVelocity = 0;
+        yVelocity = 0;
+        lastPoseX = 0;
+        lastPoseY = 0;
     }
 
     public double getLimelightTx() {
@@ -351,27 +362,31 @@ public class sistemeAuto {
         return false;
     }
 
-    private static final double LIMITA_STANGA_GRADE = -261.8;
-    private static final double LIMITA_DREAPTA_GRADE = 291.5;
-    private static final double REFERINTA_VOLTAJ_D = 0.3690;
+    private static final double LIMITA_STANGA_GRADE = -219.9;
+    private static final double LIMITA_DREAPTA_GRADE = 218.3;
+    private static final double REFERINTA_VOLTAJ_D = 0.3730;
     private static final double TURELA_DEADZONE = 2.0;
-    private static final double SCALE_FACTOR = 3.074;
+    private static final double SCALE_FACTOR = 2.435;
 
-    private static final double H_KP = 1.0;
-    private static final double H_KI = 0;
-    private static final double H_KD = 0.05;
+    private static final double H_KP = 0.2;
+    private static final double H_KI = 0.01;
+    private static final double H_KD = 0.002;
     private static final double H_MAX_INTEGRAL = 30;
-    private static final double H_MAX_CORRECTION = 20.0;
-    private static final double H_ODOM_WEIGHT = 0.3;
+    private static final double H_MAX_CORRECTION = 45.0;
+    private static final double H_ODOM_WEIGHT = 0.05;
     private static final double H_FF_GAIN_DEG = 1.5;
+    private static final double VEL_LEAD_TIME = 0.15;
 
-    private static final double POS_KP = 0.001;
-    private static final double POS_KD = 0.000054;
+    private static final double POS_KP = 0.0025;
+    private static final double POS_KD = 0.00015;
     private static final double POS_MIN_POWER = 0.04;
-    private static final double POS_MAX_POWER = 0.15;
+    private static final double POS_MAX_POWER = 0.35;
 
     private long hybridLastTime = 0;
+    private long posLastTime = 0;
     private boolean hybridLimelightVede = false;
     private double hybridLastHeading = 0;
+    private double lastPoseX = 0, lastPoseY = 0;
+    private double xVelocity = 0, yVelocity = 0;
 }
 

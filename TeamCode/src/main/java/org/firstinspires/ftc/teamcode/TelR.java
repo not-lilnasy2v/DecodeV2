@@ -37,8 +37,7 @@ public class TelR extends OpMode {
     private GoBildaPinpointDriver pinpoint;
     public Follower follower;
     volatile boolean stop;
-    double sm = 1;
-    double max = 0;
+    double sm = 0.55;
     double FL, BL, BR, FR;
     sistemeTeleOp m = new sistemeTeleOp();
     private static double TargetX = 147;
@@ -49,11 +48,11 @@ public class TelR extends OpMode {
     private ServoImplExEx turelaD;
     private ServoImplExEx turelaS;
 
-    private static final double LIMITA_STANGA_GRADE = -261.8;
-    private static final double LIMITA_DREAPTA_GRADE = 291.5;
-    private static final double REFERINTA_VOLTAJ_D = 0.3690;
+    private static final double LIMITA_STANGA_GRADE = -219.9;
+    private static final double LIMITA_DREAPTA_GRADE = 218.3;
+    private static final double REFERINTA_VOLTAJ_D = 0.3730;
     private static final double TURELA_DEADZONE = 2.0;
-    private static final double SCALE_FACTOR = 3.074;
+    private static final double SCALE_FACTOR = 2.435;
 
     private volatile double llIntegral = 0;
     private volatile double llLastError = 0;
@@ -62,33 +61,36 @@ public class TelR extends OpMode {
     private static double LL_KI = 0.01;
     private static double LL_KD = 0.002;
     private static double LL_MAX_INTEGRAL = 30;
-    private static double LL_MAX_CORRECTION = 20.0;
+    private static double LL_MAX_CORRECTION = 45.0;
 
     private static double FF_GAIN_DEG = 1.5;
     private volatile double lastTx = 0;
     private volatile boolean limelightVede = false;
     private volatile double lastHeading = 0;
     private volatile long lastHeadingTime = 0;
+    private volatile double xVelocity = 0, yVelocity = 0;
+    private volatile double lastPoseX = 0, lastPoseY = 0;
+    private static double VEL_LEAD_TIME = 0.15;
 
     private static double ODOM_WEIGHT = 0.05;
     private volatile double turelaTargetGrade = 0;
-    private static double POS_KP = 0.00085;
-    private static double POS_KD = 0.00005;
+    private static double POS_KP = 0.0025;
+    private static double POS_KD = 0.00015;
     private static double POS_MIN_POWER = 0.04;
-    private static double POS_MAX_POWER = 0.15;
+    private static double POS_MAX_POWER = 0.35;
     private volatile double posLastError = 0;
     private ElapsedTime posTimer = new ElapsedTime();
 
     private volatile int settledFrames = 0;
-    private static double SETTLED_THRESHOLD = 2.0;
+    private static double SETTLED_THRESHOLD = 3.0;
     private static int SETTLED_REQUIRED = 3;
     private static double voltajeNominale = 12.68;
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false, Touch = false, trouch = false;
+    private static final double RECOIL_STEP = 0.005;
     private volatile double distantare, posU;
     int idTag = RobotPozitie.idTag;
     private volatile boolean[] slotOcupat = new boolean[3];
     private volatile int[] slotColor = new int[3];
-
     private int getLoculete() {
         int count = 0;
         for (boolean occupied : slotOcupat) {
@@ -130,6 +132,7 @@ public class TelR extends OpMode {
     private volatile boolean trageShooting = false;
     private final Object blocat = new Object();
     private volatile boolean imuRecalibrating = false;
+    private volatile boolean imuReady = false;
 
     private void recalibrateHeading() {
         if (pinpoint != null && !imuRecalibrating) {
@@ -188,8 +191,9 @@ public class TelR extends OpMode {
         pinpoint.recalibrateIMU();
         ElapsedTime calibrationTimer = new ElapsedTime();
         while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
-                && calibrationTimer.milliseconds() < 1000) {
+                && calibrationTimer.milliseconds() < 2000) {
         }
+        imuReady = pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY;
 
         Pose startingPose = new Pose(RobotPozitie.X, RobotPozitie.Y, RobotPozitie.heading);
         follower.setStartingPose(startingPose);
@@ -212,6 +216,16 @@ public class TelR extends OpMode {
         turelaTargetGrade = 0;
     }
 
+    @Override
+    public void init_loop() {
+        telemetry.addData("IMU", imuReady ? "Gata" : "Hipa");
+        telemetry.addData("Pinpoint Status", pinpoint.getDeviceStatus());
+        telemetry.addData("Heading", "%.2f", Math.toDegrees(follower.getPose().getHeading()));
+        telemetry.addLine(imuReady ? "POTI PORNI" : "ASTEAPTA");
+        telemetry.update();
+
+    }
+
     public void start() {
         follower.update();
         pidTimer.reset();
@@ -230,11 +244,11 @@ public class TelR extends OpMode {
                 posU = m.unghiD.getPosition();
 
                 if (gamepad1.dpad_right) {
-                    targetShooterVelocity = 1950;
+                    targetShooterVelocity = 2000;
                     posU = 0.35;
                 }
                 if (gamepad1.dpad_left) {
-                    targetShooterVelocity = 1650;
+                    targetShooterVelocity = 1550;
                     posU = 0.27;
                 }
                 if (gamepad2.touchpad) {
@@ -307,7 +321,7 @@ public class TelR extends OpMode {
                     SortingToggle = gamepad2_a;
                 }
 
-                if (gamepad2.left_bumper && !sugere && !trageShooting) {
+                if (gamepad2.left_bumper && !sugere && !trageShooting && getLoculete() == 3) {
                     double lastPos = m.sortare.getPosition();
                     for (int i = 0; i < 3; i++) {
                         if (slotOcupat[i]) {
@@ -330,7 +344,23 @@ public class TelR extends OpMode {
                             }
                         }
                     }
-                    m.sortare.setPosition(Pozitii.luarea1);
+                    if (SortingPornit) {
+                        int primaColoare = primaBilaPattern();
+                        int slotShoot = BilaCuCuloare(primaColoare);
+                        if (slotShoot != -1) {
+                            m.sortare.setPosition(getAruncarePos(slotShoot));
+                        } else {
+                            m.sortare.setPosition(getAruncarePos(BilaCuCuloare(-1)));
+                        }
+                    } else {
+                        int[] order = {0, 2, 1};
+                        for (int s : order) {
+                            if (slotOcupat[s]) {
+                                m.sortare.setPosition(getAruncarePos(s));
+                                break;
+                            }
+                        }
+                    }
                     gamepad2.rumble(300);
                 }
             }
@@ -338,8 +368,8 @@ public class TelR extends OpMode {
     });
 
     private double calculateOdomAngle() {
-        double dx = TargetX - currentX;
-        double dy = TargetY - currentY;
+        double dx = TargetX - (currentX + xVelocity * VEL_LEAD_TIME);
+        double dy = TargetY - (currentY + yVelocity * VEL_LEAD_TIME);
         double angleToTarget = Math.atan2(dy, dx);
         double turretAngleRad = angleToTarget - currentH;
         while (turretAngleRad > Math.PI) turretAngleRad -= 2 * Math.PI;
@@ -430,10 +460,14 @@ public class TelR extends OpMode {
                 double hdt = (now - lastHeadingTime) / 1_000_000_000.0;
                 if (hdt > 0.005) {
                     headingRate = (currentH - lastHeading) / hdt;
+                    xVelocity = (currentX - lastPoseX) / hdt;
+                    yVelocity = (currentY - lastPoseY) / hdt;
                 }
             }
             lastHeading = currentH;
             lastHeadingTime = now;
+            lastPoseX = currentX;
+            lastPoseY = currentY;
 
             updateLimelightData();
 
@@ -507,9 +541,9 @@ public class TelR extends OpMode {
                 }
                 synchronized (blocat) {
                     int loculete = getLoculete();
-                    distantare = m.distanta.getDistance(DistanceUnit.CM);
 
                     if (Ipornit && !trageShooting && loculete < 3 && !gamepad1.b) {
+                        distantare = m.distanta.getDistance(DistanceUnit.CM);
                         sugere = true;
                         m.intake.setPower(1);
                         bascula.setPosition(Pozitii.sede);
@@ -572,7 +606,7 @@ public class TelR extends OpMode {
     });
 
     private int[] cPattern = new int[3];
-    private double targetShooterVelocity = 1650;
+    private double targetShooterVelocity = 1550;
 
     private final Thread Shooter = new Thread(new Runnable() {
         @Override
@@ -599,7 +633,7 @@ public class TelR extends OpMode {
                         }
                     }
 
-                    if (gamepad1.y && loculete > 0 && !sugere && !trageShooting) {
+                    if (gamepad1.right_trigger_pressed && loculete > 0 && !sugere && !trageShooting) {
                         trageShooting = true;
                         applyVoltageCompensatedPIDF();
                         m.shooter.setVelocity(targetShooterVelocity);
@@ -645,6 +679,9 @@ public class TelR extends OpMode {
 
         private void shootPattern() {
             double lastPos = m.sortare.getPosition();
+            double originalPosU = posU;
+            double recoilStep = RECOIL_STEP * (targetShooterVelocity / 1550.0);
+            int shotsFired = 0;
             scula.setPower(-1);
             bascula.setPosition(Pozitii.sede);
 
@@ -654,11 +691,13 @@ public class TelR extends OpMode {
 
                 if (slotShoot == -1) break;
 
+                m.unghiD.setPosition(originalPosU - recoilStep * shotsFired);
+
                 double target = getTarget(slotShoot);
                 m.sortare.setPosition(target);
 
                 double dist = Math.abs(target - lastPos);
-                int moveWait = (int) (dist * 400) + 100;
+                int moveWait = (int) (dist * 350) + 70;
                 m.kdf(moveWait);
 
                 applyVoltageCompensatedPIDF();
@@ -671,8 +710,10 @@ public class TelR extends OpMode {
                 slotOcupat[slotShoot] = false;
                 slotColor[slotShoot] = -1;
                 lastPos = target;
+                shotsFired++;
             }
-
+            posU = originalPosU;
+            m.unghiD.setPosition(posU);
         }
 
         private int GasestePattern(int needColor) {
@@ -697,12 +738,17 @@ public class TelR extends OpMode {
 
         private void rapidFireShoot() {
             double lastPos = m.sortare.getPosition();
+            double originalPosU = posU;
+            double recoilStep = RECOIL_STEP * (targetShooterVelocity / 1550.0);
+            int shotsFired = 0;
             scula.setPower(-1);
             bascula.setPosition(Pozitii.lansareRapid);
 
             int[] order = {0, 2, 1};
             for (int s : order) {
                 if (slotOcupat[s]) {
+                    m.unghiD.setPosition(originalPosU - recoilStep * shotsFired);
+
                     double target = getTarget(s);
                     m.sortare.setPosition(target);
 
@@ -714,8 +760,11 @@ public class TelR extends OpMode {
                     slotOcupat[s] = false;
                     slotColor[s] = -1;
                     lastPos = target;
+                    shotsFired++;
                 }
             }
+            posU = originalPosU;
+            m.unghiD.setPosition(posU);
         }
 
         private void waitForShooterReady() {
@@ -732,6 +781,7 @@ public class TelR extends OpMode {
                     ready = true;
                     break;
                 }
+                try { Thread.sleep(2); } catch (InterruptedException ignored) {}
             }
             if (!ready) {
                 applyVoltageCompensatedPIDF();
@@ -750,43 +800,35 @@ public class TelR extends OpMode {
         @Override
         public void run() {
             while (!stop) {
-                try { Thread.sleep(5); } catch (InterruptedException e) { break; }
                 double y = -gamepad1.left_stick_y;
                 double x = gamepad1.left_stick_x * 1.1;
                 double rx = gamepad1.right_stick_x;
 
-                FL = (y + x + rx);
-                BL = (y - x + rx);
-                BR = (y + x - rx);
-                FR = (y - x - rx);
+                FL = y + x + rx;
+                BL = y - x + rx;
+                FR = y - x - rx;
+                BR = y + x - rx;
 
-                max = abs(FL);
-                if (abs(FR) > max) {
-                    max = abs(FR);
-                }
-                if (abs(BL) > max) {
-                    max = abs(BL);
-                }
-                if (abs(BR) > max) {
-                    max = abs(BR);
-                }
+                double max = Math.max(Math.max(abs(FL), abs(FR)), Math.max(abs(BL), abs(BR)));
                 if (max > 1) {
                     FL /= max;
                     FR /= max;
                     BL /= max;
                     BR /= max;
                 }
-                if (gamepad1.right_trigger > 0) {
-                    sm = 2;
+                if (gamepad1.left_trigger > 0) {
+                    sm = 1;
                 } else {
-                    if (gamepad1.left_trigger > 0) {
-                        sm = 5;
-                    } else {
-                        sm = 1;
-                    }
+                    sm = 0.55;
                 }
-                POWER(FR / sm, FL / sm, BR / sm, BL / sm);
 
+                POWER(FR / sm, BL / sm, BR / sm, FL / sm);
+
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
     });
@@ -853,16 +895,10 @@ public class TelR extends OpMode {
         telemetry.update();
     }
 
-    public void POWER(double df1, double sf1, double ds1, double ss1) {
-        frontRight.setPower(df1);
-        backLeft.setPower(ss1);
-        frontLeft.setPower(sf1);
-        backRight.setPower(ds1);
-    }
-
-    private double normalizeAngle(double angle) {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle < -Math.PI) angle += 2 * Math.PI;
-        return angle;
+    public void POWER(double fr1, double bl1, double br1, double fl1) {
+        frontRight.setPower(fr1);
+        backLeft.setPower(bl1);
+        frontLeft.setPower(fl1);
+        backRight.setPower(br1);
     }
 }

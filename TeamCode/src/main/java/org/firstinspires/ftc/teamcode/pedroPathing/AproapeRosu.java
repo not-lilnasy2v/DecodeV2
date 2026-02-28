@@ -11,6 +11,8 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
@@ -54,6 +56,7 @@ public class AproapeRosu extends OpMode {
     private volatile boolean intakePornit = false;
     private volatile boolean stop = false;
     private Thread IntakeThread;
+    private Thread TrackingThread;
     private volatile int IntakeSlot = 0;
     private final Object slot = new Object();
 
@@ -256,6 +259,7 @@ public class AproapeRosu extends OpMode {
     }
 
     private static final double SHOOTER_VEL = 1850;
+    private static final double IDLE_RATIO = 0.67;
 
     private void TragereLaPupitru() {
         switch (ShootingStare) {
@@ -463,6 +467,18 @@ public class AproapeRosu extends OpMode {
         n.tracks(follower, TARGET_X, TARGET_Y);
     }
 
+    private void startTracking() {
+        TrackingThread = new Thread(() -> {
+            while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                n.tracks(follower, TARGET_X, TARGET_Y);
+            }
+            n.turelaD.setPosition(0.5);
+            n.turelaS.setPosition(0.5);
+        });
+        TrackingThread.start();
+    }
+
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
             private boolean ballBeingProcessed = false;
@@ -516,6 +532,20 @@ public class AproapeRosu extends OpMode {
                     } else if (!intakePornit) {
                         n.intake.setPower(0);
                         ballBeingProcessed = false;
+                    }
+
+                    // Shooter idle velocity
+                    if (!TragereInProgres) {
+                        if (loculete == 3) {
+                            n.shooter.setVelocity(SHOOTER_VEL);
+                            n.shooter2.setVelocity(SHOOTER_VEL);
+                        } else if (loculete > 0) {
+                            n.shooter.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                            n.shooter2.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                        } else {
+                            n.shooter.setVelocity(0);
+                            n.shooter2.setVelocity(0);
+                        }
                     }
                 }
             }
@@ -760,8 +790,17 @@ public class AproapeRosu extends OpMode {
         opmodeTimer.resetTimer();
 
         follower = Constants.createFollower(hardwareMap);
+
+        GoBildaPinpointDriver pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.recalibrateIMU();
+        ElapsedTime calibTimer = new ElapsedTime();
+        while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
+                && calibTimer.milliseconds() < 2000) {
+        }
+
         buildPaths();
         follower.setStartingPose(startPose);
+        follower.update();
 
         for (int i = 0; i < 3; i++) {
             slotColor[i] = -1;
@@ -801,6 +840,7 @@ public class AproapeRosu extends OpMode {
 
         Intake();
         IntakeThread.start();
+        startTracking();
     }
 
     @Override
@@ -809,6 +849,12 @@ public class AproapeRosu extends OpMode {
 
         if (scanThread != null) {
             scanThread.interrupt();
+        }
+        if (TrackingThread != null) {
+            TrackingThread.interrupt();
+        }
+        if (IntakeThread != null) {
+            IntakeThread.interrupt();
         }
 
         Pose currentPose = follower.getPose();
@@ -821,6 +867,8 @@ public class AproapeRosu extends OpMode {
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
         n.scula.setPower(0);
+        n.turelaD.setPosition(0.5);
+        n.turelaS.setPosition(0.5);
         n.bascula.setPosition(0.5807);
     }
 }

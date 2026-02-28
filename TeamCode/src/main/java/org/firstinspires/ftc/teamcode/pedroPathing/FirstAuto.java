@@ -12,6 +12,8 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
@@ -57,6 +59,7 @@ public class FirstAuto extends OpMode {
     private int flushSlot = 2;
     private int flushRound = 0;
     private long velocityCheckStart = 0;
+    private int idTag = 0;
 
     private volatile boolean[] slotOcupat = new boolean[3];
 
@@ -136,6 +139,7 @@ public class FirstAuto extends OpMode {
 
     private int ShootSlot = 2;
     private static final double SHOOTER_VEL = 1550;
+    private static final double IDLE_RATIO = 0.67;
 
     private void TragereLaPupitru() {
         switch (ShootingStare) {
@@ -143,7 +147,7 @@ public class FirstAuto extends OpMode {
                 ballshoot = 3;
                 ShootSlot = 2;
                 n.scula.setPower(-1);
-                n.bascula.setPosition(Pozitii.lansare);
+                n.bascula.setPosition(Pozitii.lansareRapid);
                 if (!shooterPreparado) {
                     n.applyVoltageCompensatedPIDF();
                     n.shooter.setVelocity(SHOOTER_VEL);
@@ -325,6 +329,7 @@ public class FirstAuto extends OpMode {
     private volatile boolean intakePornit = false;
     private volatile boolean stop = false;
     private Thread IntakeThread;
+    private Thread TrackingThread;
 
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
@@ -380,6 +385,20 @@ public class FirstAuto extends OpMode {
                         n.intake.setPower(0);
                         ballBeingProcessed = false;
                     }
+
+                    // Shooter idle velocity
+                    if (!TragereInProgres) {
+                        if (loculete == 3) {
+                            n.shooter.setVelocity(SHOOTER_VEL);
+                            n.shooter2.setVelocity(SHOOTER_VEL);
+                        } else if (loculete > 0) {
+                            n.shooter.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                            n.shooter2.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                        } else {
+                            n.shooter.setVelocity(0);
+                            n.shooter2.setVelocity(0);
+                        }
+                    }
                 }
             }
         });
@@ -388,6 +407,18 @@ public class FirstAuto extends OpMode {
 
     private void track() {
         n.tracks(follower, TARGET_X, TARGET_Y);
+    }
+
+    private void startTracking() {
+        TrackingThread = new Thread(() -> {
+            while (!stop) {
+                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                n.tracks(follower, TARGET_X, TARGET_Y);
+            }
+            n.turelaD.setPosition(0.5);
+            n.turelaS.setPosition(0.5);
+        });
+        TrackingThread.start();
     }
 
     public void autonomousPathUpdate() {
@@ -450,6 +481,7 @@ public class FirstAuto extends OpMode {
             case 6:
                 intakePornit = false;
                 pregatireShooter();
+                n.sortare.setPosition(Pozitii.aruncare1);
                 follower.followPath(trasUnu);
                 setPathState(7);
                 break;
@@ -506,6 +538,7 @@ public class FirstAuto extends OpMode {
             case 12:
                 pregatireShooter();
                 intakePornit = false;
+                n.sortare.setPosition(Pozitii.aruncare1);
                 follower.followPath(trasDoi);
                 setPathState(13);
                 break;
@@ -562,6 +595,7 @@ public class FirstAuto extends OpMode {
             case 18:
                 pregatireShooter();
                 intakePornit = false;
+                n.sortare.setPosition(Pozitii.aruncare1);
                 follower.followPath(trasTrei);
                 setPathState(19);
                 break;
@@ -695,8 +729,17 @@ public class FirstAuto extends OpMode {
         opmodeTimer.resetTimer();
 
         follower = Constants.createFollower(hardwareMap);
+
+        GoBildaPinpointDriver pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.recalibrateIMU();
+        ElapsedTime calibTimer = new ElapsedTime();
+        while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
+                && calibTimer.milliseconds() < 2000) {
+        }
+
         buildPaths();
         follower.setStartingPose(startPose);
+        follower.update();
 
     }
 
@@ -720,21 +763,32 @@ public class FirstAuto extends OpMode {
         n.resetTurelaPID();
         Intake();
         IntakeThread.start();
+        startTracking();
     }
 
     @Override
     public void stop() {
         stop = true;
 
+        if (TrackingThread != null) {
+            TrackingThread.interrupt();
+        }
+        if (IntakeThread != null) {
+            IntakeThread.interrupt();
+        }
+
         Pose currentPose = follower.getPose();
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();
         RobotPozitie.heading = currentPose.getHeading();
+        RobotPozitie.idTag = idTag;
 
         n.shooter.setVelocity(0);
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
         n.scula.setPower(0);
+        n.turelaD.setPosition(0.5);
+        n.turelaS.setPosition(0.5);
         n.bascula.setPosition(0.5807);
     }
 }
