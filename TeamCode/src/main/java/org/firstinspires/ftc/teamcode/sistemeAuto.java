@@ -26,6 +26,7 @@ public class sistemeAuto {
     public ServoImplEx Saruncare, sortare, bascula;
     public ServoImplExEx turelaD, turelaS, unghiD;
     public DistanceSensor distanta;
+    public volatile double cachedDistanta = 999.0;
     public VoltageSensor voltageSensor;
     public Limelight3A limelight;
     public NormalizedColorSensor colors;
@@ -240,11 +241,6 @@ public class sistemeAuto {
         return result;
     }
 
-    public int detecteazaBiloocaInstant() {
-        int mainResult = detectSingleMain();
-        if (mainResult != CULOARE_NIMIC) return mainResult;
-        return detectBackup();
-    }
 
     private int detectSingleMain() {
         NormalizedRGBA rgba = colors.getNormalizedColors();

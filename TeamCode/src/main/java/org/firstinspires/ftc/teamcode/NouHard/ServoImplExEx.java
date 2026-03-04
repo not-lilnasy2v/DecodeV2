@@ -173,6 +173,10 @@ public class ServoImplExEx {
         double referenceDegrees = (encoderReferenceVoltage / encoderMaxVoltage) * 360.0;
         double rawAngle = absoluteDegrees - referenceDegrees;
 
+        // Normalizare la [-180, 180) - esential pentru prima citire dupa init
+        if (rawAngle > 180) rawAngle -= 360;
+        if (rawAngle < -180) rawAngle += 360;
+
         if (!Double.isNaN(lastRawAngle)) {
             double delta = rawAngle - lastRawAngle;
             if (delta > 180) angleOffset -= 360;

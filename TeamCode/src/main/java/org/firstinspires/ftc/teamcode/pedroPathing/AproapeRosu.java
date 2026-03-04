@@ -282,7 +282,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 2:
-                track();
                 if (actionTimer.getElapsedTimeSeconds() >= 1.0) {
                     ShootingStare = 3;
                 }
@@ -332,7 +331,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 6:
-                track();
                 double v1 = Math.abs(n.shooter.getVelocity());
                 double v2 = Math.abs(n.shooter2.getVelocity());
                 double tol = SHOOTER_VEL * 0.03;
@@ -382,7 +380,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 12:
-                track();
                 if (actionTimer.getElapsedTimeSeconds() >= 0.25) {
                     ShootingStare = 13;
                 }
@@ -418,7 +415,7 @@ public class AproapeRosu extends OpMode {
 
             case 17:
                 if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    double dist = n.distanta.getDistance(org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM);
+                    double dist = n.cachedDistanta;
                     if (dist < 20 && flushRound < 2) {
                         flushRound++;
                         flushSlot = 2;
@@ -482,16 +479,21 @@ public class AproapeRosu extends OpMode {
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
             private boolean ballBeingProcessed = false;
+            private long lastDistReadTime = 0;
 
             @Override
             public void run() {
                 while (!stop) {
                     try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                    long now = System.currentTimeMillis();
+                    if (now - lastDistReadTime >= 50) {
+                        n.cachedDistanta = n.distanta.getDistance(DistanceUnit.CM);
+                        lastDistReadTime = now;
+                    }
+                    double leDistanta = n.cachedDistanta;
                     int loculete = getLoculete();
                     if (intakePornit && loculete < 3) {
                         n.intake.setPower(1);
-
-                        double leDistanta = n.distanta.getDistance(DistanceUnit.CM);
 
                         if (leDistanta < 20 && !ballBeingProcessed) {
                             ballBeingProcessed = true;
@@ -572,8 +574,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 2:
-                track();
-
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -611,7 +611,13 @@ public class AproapeRosu extends OpMode {
             case 5:
                 if (!follower.isBusy()) {
                     follower.holdPoint(colectare);
-                    n.kdf(50);
+                    actionTimer.resetTimer();
+                    setPathState(50);
+                }
+                break;
+
+            case 50:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.05) {
                     actionTimer.resetTimer();
                     setPathState(6);
                 }
@@ -619,9 +625,8 @@ public class AproapeRosu extends OpMode {
 
             case 6:
                 if (getLoculete() >= 3) {
-                    n.kdf(400);
-                    intakePornit = false;
-                    setPathState(7);
+                    actionTimer.resetTimer();
+                    setPathState(60);
                 } else if (actionTimer.getElapsedTimeSeconds() >= 3.0) {
                     intakePornit = false;
                     if (getLoculete() > 0) {
@@ -629,6 +634,13 @@ public class AproapeRosu extends OpMode {
                     } else {
                         setPathState(-1);
                     }
+                }
+                break;
+
+            case 60:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.4) {
+                    intakePornit = false;
+                    setPathState(7);
                 }
                 break;
 
@@ -648,7 +660,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 9:
-                track();
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -677,7 +688,13 @@ public class AproapeRosu extends OpMode {
                 if (!follower.isBusy()) {
                     follower.holdPoint(luare3);
                     n.intake.setPower(-1);
-                    n.kdf(150);
+                    actionTimer.resetTimer();
+                    setPathState(110);
+                }
+                break;
+
+            case 110:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
                     n.intake.setPower(0);
                     intakePornit = true;
                     follower.followPath(aluattrei,0.85,false);
@@ -695,9 +712,8 @@ public class AproapeRosu extends OpMode {
 
             case 13:
                 if (getLoculete() >= 3) {
-                    n.kdf(400);
-                    intakePornit = false;
-                    setPathState(14);
+                    actionTimer.resetTimer();
+                    setPathState(130);
                 } else if (actionTimer.getElapsedTimeSeconds() >= 3.0) {
                     intakePornit = false;
                     if (getLoculete() > 0) {
@@ -706,6 +722,13 @@ public class AproapeRosu extends OpMode {
                         follower.followPath(iesireas);
                         setPathState(-1);
                     }
+                }
+                break;
+
+            case 130:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.4) {
+                    intakePornit = false;
+                    setPathState(14);
                 }
                 break;
 
@@ -725,7 +748,6 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 16:
-                track();
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -749,6 +771,15 @@ public class AproapeRosu extends OpMode {
 
     @Override
     public void loop() {
+        if (opmodeTimer.getElapsedTimeSeconds() >= 29.5) {
+            n.shooter.setVelocity(0);
+            n.shooter2.setVelocity(0);
+            n.intake.setPower(0);
+            n.scula.setPower(0);
+            stop = true;
+            requestOpModeStop();
+            return;
+        }
         follower.update();
         autonomousPathUpdate();
 

@@ -139,6 +139,7 @@ public class RosuAuto extends OpMode {
             case 0:
                 ballshoot = 3;
                 currentShootSlot = 2;
+                idTag = n.detectIdTag();
                 n.scula.setPower(-1);
                 n.bascula.setPosition(Pozitii.lansareRapid);
                 if (!shooterPreparado) {
@@ -151,11 +152,9 @@ public class RosuAuto extends OpMode {
                 } else {
                     ShootingStare = 3;
                 }
-                track();
                 break;
 
             case 1:
-                track();
                 if (actionTimer.getElapsedTimeSeconds() >= 0.35) {
                     actionTimer.resetTimer();
                     ShootingStare = 2;
@@ -163,8 +162,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 2:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 1.0) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.50) {
                     ShootingStare = 3;
                 }
                 break;
@@ -191,20 +189,18 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 5:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.10) {
                     velocityCheckStart = System.currentTimeMillis();
                     ShootingStare = 6;
                 }
                 break;
 
             case 6:
-                track();
                 double v1 = Math.abs(n.shooter.getVelocity());
                 double v2 = Math.abs(n.shooter2.getVelocity());
                 double tol = SHOOTER_VEL * 0.03;
                 if ((Math.abs(v1 - SHOOTER_VEL) < tol && Math.abs(v2 - SHOOTER_VEL) < tol)
-                        || (System.currentTimeMillis() - velocityCheckStart) > 500) {
+                        || (System.currentTimeMillis() - velocityCheckStart) > 400) {
                     ShootingStare = 7;
                 }
                 break;
@@ -215,7 +211,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 8:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.07) {
                     ShootingStare = 9;
                 }
                 break;
@@ -226,7 +222,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 10:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.09) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.03) {
                     slotOcupat[currentShootSlot] = false;
                     currentShootSlot--;
                     ShootingStare = 3;
@@ -244,8 +240,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 12:
-                track();
-                if (actionTimer.getElapsedTimeSeconds() >= 0.25) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
                     ShootingStare = 13;
                 }
                 break;
@@ -256,7 +251,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 14:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.07) {
                     ShootingStare = 15;
                 }
                 break;
@@ -267,7 +262,7 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 16:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.09) {
+                if (actionTimer.getElapsedTimeSeconds() >= 0.03) {
                     flushSlot--;
                     if (flushSlot >= 0) {
                         ShootingStare = 11;
@@ -279,8 +274,8 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 17:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    double dist = n.distanta.getDistance(DistanceUnit.CM);
+                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                    double dist = n.cachedDistanta;
                     if (dist < 20 && flushRound < 2) {
                         flushRound++;
                         flushSlot = 2;
@@ -327,16 +322,21 @@ public class RosuAuto extends OpMode {
     private void Intake() {
         IntakeThread = new Thread(new Runnable() {
             private boolean ballBeingProcessed = false;
+            private long lastDistReadTime = 0;
 
             @Override
             public void run() {
                 while (!stop) {
                     try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                    long now = System.currentTimeMillis();
+                    if (now - lastDistReadTime >= 50) {
+                        n.cachedDistanta = n.distanta.getDistance(DistanceUnit.CM);
+                        lastDistReadTime = now;
+                    }
+                    double leDistanta = n.cachedDistanta;
                     int loculete = getLoculete();
                     if (intakePornit && loculete < 3) {
                         n.intake.setPower(1);
-
-                        double leDistanta = n.distanta.getDistance(DistanceUnit.CM);
 
                         if (leDistanta < 20 && !ballBeingProcessed) {
                             ballBeingProcessed = true;
@@ -416,7 +416,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 2:
-                track();
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -457,7 +456,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 6:
-                track();
                 if (!follower.isBusy()) {
                     follower.holdPoint(tras1);
                     setPathState(7);
@@ -465,7 +463,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 7:
-                track();
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -515,7 +512,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 12:
-                track();
                 if (!follower.isBusy()) {
                     follower.holdPoint(tras2);
                     setPathState(13);
@@ -523,8 +519,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 13:
-                track();
-
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -575,7 +569,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 18:
-                track();
                 if (!follower.isBusy()) {
                     follower.holdPoint(tras3);
                     setPathState(19);
@@ -583,8 +576,6 @@ public class RosuAuto extends OpMode {
                 break;
 
             case 19:
-                track();
-
                 if (!TragereInProgres) {
                     TragereInProgres = true;
                     ShootingStare = 0;
@@ -647,7 +638,7 @@ public class RosuAuto extends OpMode {
                     if (getLoculete() == 0) {
                         setPathState(26);
                     } else {
-                        setPathState(12);
+                        setPathState(11);
                     }
                 }
                 break;
@@ -676,7 +667,7 @@ public class RosuAuto extends OpMode {
                     if (getLoculete() == 0) {
                         setPathState(21);
                     } else {
-                        setPathState(18);
+                        setPathState(17);
                     }
                 }
                 break;
@@ -712,6 +703,15 @@ public class RosuAuto extends OpMode {
 
     @Override
     public void loop() {
+        if (opmodeTimer.getElapsedTimeSeconds() >= 29.5) {
+            n.shooter.setVelocity(0);
+            n.shooter2.setVelocity(0);
+            n.intake.setPower(0);
+            n.scula.setPower(0);
+            stop = true;
+            requestOpModeStop();
+            return;
+        }
         follower.update();
         telemetry.addData("slots",slotOcupat[2]);
         telemetry.addData("slot1",slotOcupat[1]);
