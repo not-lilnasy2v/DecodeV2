@@ -924,4 +924,4 @@ public class TelR extends OpMode {
         frontLeft.setPower(fl1);
         backRight.setPower(br1);
     }
-}
+}//
