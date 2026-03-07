@@ -24,10 +24,10 @@ public class Constants {
             .useSecondaryDrivePIDF(true)
             .translationalPIDFCoefficients(new PIDFCoefficients(0.3, 0,0.025,0.2))
             .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.3,0,0.01,0.015))
-            .headingPIDFCoefficients(new PIDFCoefficients(3,0,0.07,0.04))
-            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.07,0,0.06,0.02))
-            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.7,0,0.0007,0.07,0.03))
-            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.07,0,0.0001,0.7,0.04))
+            .headingPIDFCoefficients(new PIDFCoefficients(2,0,0.15,0.04))
+            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(0.07,0,0.08,0.02))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.7,0,0.003,0.07,0.03))
+            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.07,0,0.0005,0.7,0.04))
             .centripetalScaling(0.0003);
     public static MecanumConstants driveConstants = new MecanumConstants()
             .leftFrontMotorName("frontLeft")
@@ -42,6 +42,7 @@ public class Constants {
             .xVelocity(75.65946275605931)
             .yVelocity(56.42326294906496);
     public static PinpointConstants localizerConstants = new PinpointConstants()
+
             .forwardPodY(-4.13385827)
             .strafePodX(-6.67)
             .distanceUnit(DistanceUnit.INCH)

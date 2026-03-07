@@ -16,6 +16,7 @@ import org.firstinspires.ftc.teamcode.NouHard.ServoImplExEx;
 public class sistemeTeleOp {
     public DcMotorEx shooter, intake, shooter2,scula;
     public ServoImplExEx bascula, sortare, unghiD, turelaS, turelaD;
+//    public ServoImplExEx Saruncare;
     public DistanceSensor distanta;
     public VoltageSensor voltageSensor;
     public NormalizedColorSensor colors;
@@ -49,6 +50,8 @@ public class sistemeTeleOp {
         turelaD.setMinPosition(0);
         turelaS.setMaxPosition(1);
         turelaD.setMaxPosition(1);
+//        turelaS.setPosition(0.5);
+//        turelaD.setPosition(0.5);
 
         shooter = hard.get(DcMotorEx.class, "shooter");
         shooter2 = hard.get(DcMotorEx.class, "shooter2");
@@ -65,6 +68,8 @@ public class sistemeTeleOp {
 
         scula = hard.get(DcMotorEx.class, "scula");
         scula.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+//        Saruncare = ServoImplExEx.get(hard, "aruncare");
+//        Saruncare.setPosition(Pozitii.coborare);
         sortare = ServoImplExEx.get(hard, "sortare");
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
@@ -98,9 +103,9 @@ public class sistemeTeleOp {
     public void kdf(long t) {
         try { Thread.sleep(t); } catch (InterruptedException ignored) {}
     }
-
-    private static final double SORT_MS_PER_UNIT = 250;
-    private static final long SORT_MARGIN_MS = 15;
+    
+    private static final double SORT_MS_PER_UNIT = 400;
+    private static final long SORT_MARGIN_MS = 25;
 
     public long sortareWaitMs(double fromPos, double toPos) {
         return (long)(Math.abs(toPos - fromPos) * SORT_MS_PER_UNIT) + SORT_MARGIN_MS;
@@ -208,17 +213,6 @@ public class sistemeTeleOp {
     public void resetareDetection() {
         lastDetectedColor = CULOARE_NIMIC;
         lastDetectionTime = 0;
-    }
-    public float[] MainSensor() {
-        NormalizedRGBA rgba = colors.getNormalizedColors();
-        Color.colorToHSV(rgba.toColor(), hsvMain);
-        return hsvMain;
-    }
-
-    public float[] BackUpSensor() {
-        NormalizedRGBA rgba = colorv2.getNormalizedColors();
-        Color.colorToHSV(rgba.toColor(), hsvBackup);
-        return hsvBackup;
     }
 
     public int UltimaDetectare() {
