@@ -23,10 +23,10 @@ import java.util.List;
 
 public class sistemeAuto {
     public DcMotorEx shooter, shooter2, intake, scula;
-    public ServoImplEx Saruncare, sortare, bascula;
+    public ServoImplEx sortare, bascula;
     public ServoImplExEx turelaD, turelaS, unghiD;
     public DistanceSensor distanta;
-    public volatile double cachedDistanta = 999.0;
+    public volatile double cachedDistanta = 819.0;
     public VoltageSensor voltageSensor;
     public Limelight3A limelight;
     public NormalizedColorSensor colors;
@@ -50,7 +50,6 @@ public class sistemeAuto {
 
 
     public void initsisteme(HardwareMap hard) {
-
         shooter = hard.get(DcMotorEx.class, "shooter");
         shooter.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         shooter.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
@@ -75,8 +74,6 @@ public class sistemeAuto {
 
         scula = hard.get(DcMotorEx.class, "scula");
         scula.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-//        Saruncare = hard.get(ServoImplEx.class, "aruncare");
-//        Saruncare.setPosition(Pozitii.coborare);
         sortare = hard.get(ServoImplEx.class, "sortare");
         sortare.setPosition(Pozitii.luarea1);
         unghiD = ServoImplExEx.get(hard, "unghiD");
@@ -123,88 +120,121 @@ public class sistemeAuto {
         com.pedropathing.geometry.Pose pose = follower.getPose();
         long now = System.nanoTime();
 
-        // Calcul heading rate + velocity (ca in TeleOp)
-        double headingRate = 0;
-        if (hybridLastTime != 0) {
-            double hdt = (now - hybridLastTime) / 1_000_000_000.0;
-            if (hdt > 0.005) {
-                headingRate = (pose.getHeading() - hybridLastHeading) / hdt;
-                xVelocity = (pose.getX() - lastPoseX) / hdt;
-                yVelocity = (pose.getY() - lastPoseY) / hdt;
-            }
+        // Prima iteratie dupa reset - doar inregistreaza si iese
+        if (hybridLastTime == 0) {
+            hybridLastTime = now;
+            hybridLastHeading = pose.getHeading();
+            lastPoseX = pose.getX();
+            lastPoseY = pose.getY();
+            return;
         }
+
+        double dt = (now - hybridLastTime) / 1_000_000_000.0;
+        dt = Math.max(0.005, Math.min(0.1, dt));
+        hybridLastTime = now;
+
+        // Heading rate filtrat + normalizat
+        double headingDiff = pose.getHeading() - hybridLastHeading;
+        headingDiff = normalizeAngle(headingDiff);
         hybridLastHeading = pose.getHeading();
+        double rawHR = headingDiff / dt;
+        filteredHeadingRate += HR_FILTER * (rawHR - filteredHeadingRate);
+
+        // Velocity filtrat
+        xVelocity += VEL_FILTER * ((pose.getX() - lastPoseX) / dt - xVelocity);
+        yVelocity += VEL_FILTER * ((pose.getY() - lastPoseY) / dt - yVelocity);
         lastPoseX = pose.getX();
         lastPoseY = pose.getY();
 
-        // Odometry cu velocity compensation
-        double dx = targetX - (pose.getX() + xVelocity * VEL_LEAD_TIME);
-        double dy = targetY - (pose.getY() + yVelocity * VEL_LEAD_TIME);
+        // Odometry angle cu velocity prediction
+        double predictedX = pose.getX() + xVelocity * VEL_LEAD_TIME;
+        double predictedY = pose.getY() + yVelocity * VEL_LEAD_TIME;
+        double dx = targetX - predictedX;
+        double dy = targetY - predictedY;
+        double distToTarget = Math.hypot(dx, dy);
         double angleToTarget = Math.atan2(dy, dx);
-        double turretAngleRad = angleToTarget - pose.getHeading();
-        turretAngleRad = normalizeAngle(turretAngleRad);
-        double odomAngle = Math.toDegrees(turretAngleRad) * SCALE_FACTOR;
-        odomAngle = Math.max(LIMITA_STANGA_GRADE, Math.min(LIMITA_DREAPTA_GRADE, odomAngle));
+        double turretRad = normalizeAngle(angleToTarget - pose.getHeading());
+        double odomAngle = Math.toDegrees(turretRad) * SCALE_FACTOR;
+        odomAngle = clamp(odomAngle, LIMITA_STANGA_GRADE, LIMITA_DREAPTA_GRADE);
 
-        // Limelight
+        // Translational feedforward
+        double tangentialVel = xVelocity * Math.sin(angleToTarget) - yVelocity * Math.cos(angleToTarget);
+        double bearingRate = tangentialVel / Math.max(distToTarget, MIN_DIST);
+        double translationalFF = Math.toDegrees(bearingRate) * SCALE_FACTOR * TRANS_FF_GAIN;
+
+        // Limelight - hybrid offset (ca in TeleOp)
         LLResult result = limelight.getLatestResult();
         hybridLimelightVede = false;
-        double tx = 0;
         if (result != null && result.isValid()) {
             List<FiducialResult> fiducials = result.getFiducialResults();
             if (fiducials != null && !fiducials.isEmpty()) {
-                tx = result.getTx();
+                double tx = result.getTx();
                 hybridLimelightVede = true;
+                double currentAngle = turelaD.getCurrentAngle();
+                double angleAtCapture = currentAngle - Math.toDegrees(filteredHeadingRate) * LL_LATENCY * SCALE_FACTOR;
+                double trueTarget = angleAtCapture - tx * SCALE_FACTOR;
+                double offsetError = trueTarget - odomAngle;
+                llOffset += ALPHA * (offsetError - llOffset);
+                double rawOutput = POS_KP * (odomAngle + llOffset - currentAngle);
+                if (Math.abs(rawOutput) < POS_MAX_POWER) {
+                    llIntegral += offsetError * dt;
+                    llIntegral = clamp(llIntegral, -H_MAX_INTEGRAL, H_MAX_INTEGRAL);
+                }
+                llOffset = clamp(llOffset, -MAX_OFFSET, MAX_OFFSET);
             }
         }
-
-        // Hybrid PID (limelight + odom)
-        double targetAngle;
         if (!hybridLimelightVede) {
-            llIntegral = 0;
-            llLastError = 0;
-            targetAngle = odomAngle;
-        } else {
-            double dt = (hybridLastTime == 0) ? 0.01 : (now - hybridLastTime) / 1_000_000_000.0;
-            dt = Math.max(0.005, dt);
-            double error = -tx * SCALE_FACTOR;
-            llIntegral += error * dt;
-            llIntegral = Math.max(-H_MAX_INTEGRAL, Math.min(H_MAX_INTEGRAL, llIntegral));
-            double derivative = (error - llLastError) / dt;
-            llLastError = error;
-            double correction = H_KP * error + H_KI * llIntegral + H_KD * derivative;
-            correction = Math.max(-H_MAX_CORRECTION, Math.min(H_MAX_CORRECTION, correction));
-            double currentAngle = turelaD.getCurrentAngle();
-            double baseAngle = H_ODOM_WEIGHT * odomAngle + (1 - H_ODOM_WEIGHT) * currentAngle;
-            targetAngle = baseAngle + correction;
-            targetAngle = Math.max(LIMITA_STANGA_GRADE, Math.min(LIMITA_DREAPTA_GRADE, targetAngle));
+            llOffset *= DECAY;
+            llIntegral *= 0.95;
         }
-        hybridLastTime = now;
 
-        // Heading rate feedforward
-        targetAngle += headingRate * H_FF_GAIN_DEG;
-        targetAngle = Math.max(LIMITA_STANGA_GRADE, Math.min(LIMITA_DREAPTA_GRADE, targetAngle));
+        // Target angle
+        double targetAngle = odomAngle + llOffset + llIntegral * LL_KI + TURELA_OFFSET_DEG;
+        targetAngle += filteredHeadingRate * H_FF_GAIN_DEG + translationalFF;
+        targetAngle = clamp(targetAngle, LIMITA_STANGA_GRADE, LIMITA_DREAPTA_GRADE);
 
-        // Position PID (servo control) - cu dt corect
-        turelaTargetGrade = targetAngle;
+        // Smoothed target cu adaptive alpha
         double currentAngle = turelaD.getCurrentAngle();
-        double posError = targetAngle - currentAngle;
-        double posDt = (posLastTime == 0) ? 0.01 : (now - posLastTime) / 1_000_000_000.0;
-        posDt = Math.max(0.005, posDt);
-        posLastTime = now;
-        double posDerivative = (posError - posLastError) / posDt;
-        posLastError = posError;
+        double preError = Math.abs(targetAngle - currentAngle);
+        double adaptiveAlpha;
+        if (preError > DISTURBANCE_THRESHOLD) adaptiveAlpha = 0.95;
+        else if (preError > 5.0) adaptiveAlpha = 0.85;
+        else adaptiveAlpha = T_ALPHA;
 
-        if (Math.abs(posError) < TURELA_DEADZONE) {
+        if (!trackingInitialized) {
+            smoothedTarget = targetAngle;
+            trackingInitialized = true;
+        } else {
+            smoothedTarget += adaptiveAlpha * (targetAngle - smoothedTarget);
+        }
+
+        // Position PID cu measurement-based derivative
+        turelaTargetGrade = smoothedTarget;
+        double posError = smoothedTarget - currentAngle;
+        double posDerivative = -(currentAngle - prevMeasurement) / dt;
+        prevMeasurement = currentAngle;
+
+        double absError = Math.abs(posError);
+        if (absError < TURELA_DEADZONE) {
             turelaD.setPosition(0.5);
             turelaS.setPosition(0.5);
             return;
         }
+
+        double effectiveMaxPower;
+        if (absError > 20.0) effectiveMaxPower = BOOST_MAX_POWER;
+        else if (absError > 10.0) effectiveMaxPower = POS_MAX_POWER + 0.05;
+        else effectiveMaxPower = POS_MAX_POWER;
+
         double power = POS_KP * posError + POS_KD * posDerivative;
-        if (Math.abs(power) < POS_MIN_POWER) {
+        if (absError < TURELA_DEADZONE * 2) {
+            double ramp = (absError - TURELA_DEADZONE) / TURELA_DEADZONE;
+            power *= Math.max(0, ramp);
+        }
+        if (Math.abs(power) < POS_MIN_POWER && absError > TURELA_DEADZONE) {
             power = Math.signum(power) * POS_MIN_POWER;
         }
-        power = Math.max(-POS_MAX_POWER, Math.min(POS_MAX_POWER, power));
+        power = clamp(power, -effectiveMaxPower, effectiveMaxPower);
         turelaD.setPosition(0.5 - power);
         turelaS.setPosition(0.5 - power);
     }
@@ -249,39 +279,21 @@ public class sistemeAuto {
         float hue = hsvMain[0];
         float sat = hsvMain[1];
         float val = hsvMain[2];
-
-        if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) {
-            return CULOARE_NIMIC;
-        }
-        if (hue >= Pozitii.MAIN_VERDE_HUE_MIN && hue <= Pozitii.MAIN_VERDE_HUE_MAX) {
-            return CULOARE_VERDE;
-        }
-        if (hue >= Pozitii.MAIN_MOV_HUE_MIN && hue <= Pozitii.MAIN_MOV_HUE_MAX) {
-            return CULOARE_MOV;
-        }
-
+        if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) return CULOARE_NIMIC;
+        if (hue >= Pozitii.MAIN_VERDE_HUE_MIN && hue <= Pozitii.MAIN_VERDE_HUE_MAX) return CULOARE_VERDE;
+        if (hue >= Pozitii.MAIN_MOV_HUE_MIN && hue <= Pozitii.MAIN_MOV_HUE_MAX) return CULOARE_MOV;
         return CULOARE_NIMIC;
     }
 
     private int detectBackup() {
         NormalizedRGBA rgba = colorv2.getNormalizedColors();
         Color.colorToHSV(rgba.toColor(), hsvBackup);
-
         float hue = hsvBackup[0];
         float sat = hsvBackup[1];
         float val = hsvBackup[2];
-
-        if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) {
-            return CULOARE_NIMIC;
-        }
-
-        if (hue >= Pozitii.BACKUP_VERDE_HUE_MIN && hue <= Pozitii.BACKUP_VERDE_HUE_MAX) {
-            return CULOARE_VERDE;
-        }
-        if (hue >= Pozitii.BACKUP_MOV_HUE_MIN && hue <= Pozitii.BACKUP_MOV_HUE_MAX) {
-            return CULOARE_MOV;
-        }
-
+        if (sat < Pozitii.MIN_SATURATION || val < Pozitii.MIN_VALUE) return CULOARE_NIMIC;
+        if (hue >= Pozitii.BACKUP_VERDE_HUE_MIN && hue <= Pozitii.BACKUP_VERDE_HUE_MAX) return CULOARE_VERDE;
+        if (hue >= Pozitii.BACKUP_MOV_HUE_MIN && hue <= Pozitii.BACKUP_MOV_HUE_MAX) return CULOARE_MOV;
         return CULOARE_NIMIC;
     }
 
@@ -308,11 +320,14 @@ public class sistemeAuto {
     }
 
     private double llIntegral = 0;
-    private double llLastError = 0;
-    private double posLastError = 0;
+    private double llOffset = 0;
     private double turelaTargetGrade = 0;
+    private double filteredHeadingRate = 0;
+    private double smoothedTarget = 0;
+    private boolean trackingInitialized = false;
+    private double prevMeasurement = 0;
 
-    private static final double voltajeNominale = 12.68;
+    private static final double voltajeNominale = 12.85;
 
     public void applyVoltageCompensatedPIDF() {
         double currentVoltage = voltageSensor.getVoltage();
@@ -326,11 +341,13 @@ public class sistemeAuto {
 
     public void resetTurelaPID() {
         llIntegral = 0;
-        llLastError = 0;
-        posLastError = 0;
+        llOffset = 0;
         turelaTargetGrade = 0;
+        filteredHeadingRate = 0;
+        smoothedTarget = 0;
+        trackingInitialized = false;
+        prevMeasurement = 0;
         hybridLastTime = 0;
-        posLastTime = 0;
         hybridLastHeading = 0;
         xVelocity = 0;
         yVelocity = 0;
@@ -349,6 +366,15 @@ public class sistemeAuto {
         return 0;
     }
 
+    public void resetLimelightCorrection() {
+        llOffset = 0;
+        llIntegral = 0;
+    }
+
+    public double getTurelaError() {
+        return Math.abs(turelaTargetGrade - turelaD.getCurrentAngle());
+    }
+
     public boolean isTagVisible() {
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
@@ -364,25 +390,36 @@ public class sistemeAuto {
     private static final double TURELA_DEADZONE = 2.0;
     private static final double SCALE_FACTOR = 2.435;
 
-    private static final double H_KP = 0.2;
-    private static final double H_KI = 0.01;
-    private static final double H_KD = 0.002;
-    private static final double H_MAX_INTEGRAL = 30;
-    private static final double H_MAX_CORRECTION = 45.0;
-    private static final double H_ODOM_WEIGHT = 0.05;
-    private static final double H_FF_GAIN_DEG = 1.5;
-    private static final double VEL_LEAD_TIME = 0.15;
+    private static final double ALPHA = 0.25;
+    private static final double MAX_OFFSET = 35.0;
+    private static final double DECAY = 0.97;
+    private static final double H_FF_GAIN_DEG = 1.2;
+    private static final double HR_FILTER = 0.30;
+    private static final double VEL_FILTER = 0.22;
+    private static final double VEL_LEAD_TIME = 0.2;
+    private static final double T_ALPHA = 0.45;
+    private static final double LL_LATENCY = 0.02;
+    private static final double LL_KI = 0.03;
+    private static final double H_MAX_INTEGRAL = 15.0;
+    private static final double TRANS_FF_GAIN = 0.2;
+    private static final double MIN_DIST = 12.0;
+    private static final double DISTURBANCE_THRESHOLD = 17.0;
+    private static final double TURELA_OFFSET_DEG = 3.0;
 
     private static final double POS_KP = 0.0025;
-    private static final double POS_KD = 0.00015;
-    private static final double POS_MIN_POWER = 0.04;
-    private static final double POS_MAX_POWER = 0.35;
+    private static final double POS_KD = 0.00010;
+    private static final double POS_MIN_POWER = 0.05;
+    private static final double POS_MAX_POWER = 0.45;
+    private static final double BOOST_MAX_POWER = 0.55;
 
     private long hybridLastTime = 0;
-    private long posLastTime = 0;
     private boolean hybridLimelightVede = false;
     private double hybridLastHeading = 0;
     private double lastPoseX = 0, lastPoseY = 0;
     private double xVelocity = 0, yVelocity = 0;
+
+    private double clamp(double val, double min, double max) {
+        return Math.max(min, Math.min(max, val));
+    }
 }
 

@@ -3,14 +3,14 @@ package org.firstinspires.ftc.teamcode;
 public class Pozitii {
 
     /// Sortarea
-    public static final double aruncare1 =0.231;
-    public static final double aruncare2 = 0.954;
-    public static final double aruncare3 = 0.587;
-    public static final double luarea1 = 0.777;
-    public static final double luarea2 = 0.402;
-    public static final double luarea3 = 0.04;
+    public static final double luarea1 =0.231;
+    public static final double luarea2 = 0.587;
+    public static final double luarea3 = 0.954;
+    public static final double aruncare1 = 0.777;
+    public static final double aruncare2 = 0.04;
+    public static final double aruncare3 = 0.402;
     /// Lansare
-//    public static final double lansare = 0.5;
+//    public static final double lansare = 0.5;+
 //    public static final double coborare = 0.731;
     public static final double sede = 0.307;
     public static final double lansare = 0.333;
