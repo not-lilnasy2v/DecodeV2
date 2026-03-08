@@ -146,9 +146,11 @@ public class sistemeAuto {
         lastPoseX = pose.getX();
         lastPoseY = pose.getY();
 
-        // Odometry angle cu velocity prediction
-        double predictedX = pose.getX() + xVelocity * VEL_LEAD_TIME;
-        double predictedY = pose.getY() + yVelocity * VEL_LEAD_TIME;
+        // Odometry angle cu velocity prediction (redus cand stationar)
+        double spd = Math.hypot(xVelocity, yVelocity);
+        double leadScale = Math.min(1.0, spd / 8.0);
+        double predictedX = pose.getX() + xVelocity * VEL_LEAD_TIME * leadScale;
+        double predictedY = pose.getY() + yVelocity * VEL_LEAD_TIME * leadScale;
         double dx = targetX - predictedX;
         double dy = targetY - predictedY;
         double distToTarget = Math.hypot(dx, dy);
@@ -188,9 +190,13 @@ public class sistemeAuto {
             llIntegral *= 0.95;
         }
 
+        // Feedforward scale: dezactivat cand robotul e stationar (previne tracking haotic la patinaj)
+        double speed = Math.hypot(xVelocity, yVelocity);
+        double ffScale = Math.min(1.0, speed / 8.0);
+
         // Target angle
         double targetAngle = odomAngle + llOffset + llIntegral * LL_KI + TURELA_OFFSET_DEG;
-        targetAngle += filteredHeadingRate * H_FF_GAIN_DEG + translationalFF;
+        targetAngle += (filteredHeadingRate * H_FF_GAIN_DEG + translationalFF) * ffScale;
         targetAngle = clamp(targetAngle, LIMITA_STANGA_GRADE, LIMITA_DREAPTA_GRADE);
 
         // Smoothed target cu adaptive alpha
@@ -199,6 +205,7 @@ public class sistemeAuto {
         double adaptiveAlpha;
         if (preError > DISTURBANCE_THRESHOLD) adaptiveAlpha = 0.95;
         else if (preError > 5.0) adaptiveAlpha = 0.85;
+        else if (speed < 5.0) adaptiveAlpha = 0.25;
         else adaptiveAlpha = T_ALPHA;
 
         if (!trackingInitialized) {
@@ -404,8 +411,7 @@ public class sistemeAuto {
     private static final double TRANS_FF_GAIN = 0.2;
     private static final double MIN_DIST = 12.0;
     private static final double DISTURBANCE_THRESHOLD = 17.0;
-    private static final double TURELA_OFFSET_DEG = 3.0;
-
+    private static final double TURELA_OFFSET_DEG = -15.0;
     private static final double POS_KP = 0.0025;
     private static final double POS_KD = 0.00010;
     private static final double POS_MIN_POWER = 0.05;

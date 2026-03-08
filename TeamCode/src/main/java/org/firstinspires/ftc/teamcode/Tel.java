@@ -42,10 +42,9 @@ public class Tel extends OpMode {
     double FL, BL, BR, FR;
     sistemeTeleOp m = new sistemeTeleOp();
     private static volatile double TargetX = 0;
-    private static volatile double TargetY = 144;
+    private static volatile double TargetY = 127;
     private static double IDLE_RATIO = 0.67;
     private volatile double currentY, currentX, currentH;
-
 
     private ServoImplExEx turelaD;
     private ServoImplExEx turelaS;
@@ -250,12 +249,12 @@ public class Tel extends OpMode {
                     posU = m.unghiD.getPosition();
 
                     if (gamepad1.dpad_right) {
-                        targetShooterVelocity = 2000;
+                        targetShooterVelocity = 2050;
                         posU = 0.35;
                     }
                     if (gamepad1.dpad_left) {
                         targetShooterVelocity = 1650;
-                        posU = 0.27;
+                        posU = 0.2567;
                     }
                     if (gamepad2.touchpad) {
                         targetShooterVelocity = 0;
@@ -678,6 +677,7 @@ public class Tel extends OpMode {
                             m.sortare.setPosition(target);
                             m.kdf(m.sortareWaitMs(lastPos, target));
                         }
+                        waitForShooterReady();
                         m.kdf(30);
 
                         slotOcupat[s] = false;
@@ -969,6 +969,7 @@ public class Tel extends OpMode {
         telemetry.addData("Heading (deg)", "%.2f", Math.toDegrees(follower.getPose().getHeading()));
         telemetry.addData("y", currentY);
         telemetry.addData("TargetY", TargetY);
+        telemetry.addData("Amperaj", m.intake.getCurrent(CurrentUnit.AMPS));
         telemetry.update();
     }
 

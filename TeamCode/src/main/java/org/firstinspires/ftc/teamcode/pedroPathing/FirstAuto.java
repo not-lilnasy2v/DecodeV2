@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
 import org.firstinspires.ftc.teamcode.RobotPozitie;
@@ -29,11 +30,12 @@ public class FirstAuto extends OpMode {
 
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 144;
+    
 
     private final Pose startPose = new Pose(24.503496503496507, 128.8951048951049, Math.toRadians(142));
     private final Pose tragere1 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));
     private final Pose aduna1 = new Pose(59.3076923076923, 89.93706293706293, Math.toRadians(180));
-    private final Pose aluat1 = new Pose(23.55244755244755, 89.05804195804195, Math.toRadians(180));
+    private final Pose aluat1 = new Pose(21.55244755244755, 89.05804195804195, Math.toRadians(180));
     private final Pose tras1 = new Pose(58.72027972027973, 95.74825174825179, Math.toRadians(180));
     private final Pose aduna2 = new Pose(70.97403296004696, 62.21209786223014, Math.toRadians(180));
     private final Pose aluat2 = new Pose(18.69230769230769, 62.75055940069167, Math.toRadians(180));
@@ -41,11 +43,16 @@ public class FirstAuto extends OpMode {
     private final Pose tras2 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));
     private final Pose tras3 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));
     private final Pose returnToBase = new Pose(28.790209790209786,93.66433566433567,Math.toRadians(180));
-    private final Pose deschideCombinat = new Pose(17.269230769230774, 68.76923076923079, Math.toRadians(150));
+    private final Pose deschideCombinat = new Pose(17.269230769230774, 67.876923076923079, Math.toRadians(140));
     private final Pose CPdeschideCombinat = new Pose(50.66346153846153, 64.85576923076923);
     private final Pose lansareGate = new Pose(60.69584837545127, 95.60351291307968,Math.toRadians(180));
     private final Pose CPlansareGate = new Pose(68.69685504026661, 61.81897389613998);
     private final Pose preGate = new Pose(25.250000000000004, 74.13461538461539, Math.toRadians(180));
+    private final Pose gateBackoff = new Pose(
+            deschideCombinat.getX() + 1.5, deschideCombinat.getY() - 1.5, deschideCombinat.getHeading());
+    private boolean backingOff = false;
+    private Timer backoffTimer = new Timer();
+    private static final double JAM_CURRENT = 6.5;
     private PathChain scorePreload;
     private PathChain collectare1, trasUnu, collectare2, trasDoi, /* collectare3, trasTrei, */ returnarea, DuceGate, Trage_Gata;
     private boolean TragereInProgres = false;
@@ -63,8 +70,8 @@ public class FirstAuto extends OpMode {
         scorePreload = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, tragere1))
                 .setLinearHeadingInterpolation(startPose.getHeading(), tragere1.getHeading())
-                .setGlobalDeceleration(3.5)
-                .setBrakingStart(1.8)
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .build();
 
         collectare1 = follower.pathBuilder()
@@ -77,8 +84,8 @@ public class FirstAuto extends OpMode {
                 .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
                 .setTranslationalConstraint(1)
                 .setTimeoutConstraint(50)
-                .setGlobalDeceleration(3.5)
-                .setBrakingStart(1.8)
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .build();
 
         collectare2 = follower.pathBuilder()
@@ -90,8 +97,8 @@ public class FirstAuto extends OpMode {
                 .addPath(new BezierCurve(aluat2,curburaMiti ,tras2))
                 .setLinearHeadingInterpolation(aluat2.getHeading(), tras2.getHeading())
                 .setTranslationalConstraint(1)
-                .setGlobalDeceleration(3.5)
-                .setBrakingStart(1.8)
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .setTimeoutConstraint(70)
                 .build();
         // collectare3 = follower.pathBuilder()
@@ -114,8 +121,8 @@ public class FirstAuto extends OpMode {
         Trage_Gata = follower.pathBuilder()
                 .addPath(new BezierCurve(deschideCombinat,CPlansareGate,lansareGate))
                 .setLinearHeadingInterpolation(deschideCombinat.getHeading(),lansareGate.getHeading())
-                .setGlobalDeceleration(3.5)
-                .setBrakingStart(1.8)
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .build();
 
         DuceGate= follower.pathBuilder()
@@ -367,7 +374,19 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 11:
+                if (!backingOff) {
+                    double amps = n.intake.getCurrent(CurrentUnit.AMPS);
+                    if (amps > JAM_CURRENT) {
+                        backingOff = true;
+                        follower.holdPoint(gateBackoff);
+                        backoffTimer.resetTimer();
+                    }
+                } else if (backoffTimer.getElapsedTimeSeconds() >= 0.35) {
+                    backingOff = false;
+                    follower.holdPoint(deschideCombinat);
+                }
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 2.5) {
+                    backingOff = false;
                     intakePornit = false;
                     pregatireShooter();
                     follower.followPath(Trage_Gata);
@@ -413,7 +432,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 17:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.7) {
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 1.5) {
                     intakePornit = false;
                     setPathState(18);
                 }
@@ -467,7 +486,19 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 32:
+                if (!backingOff) {
+                    double amps = n.intake.getCurrent(CurrentUnit.AMPS);
+                    if (amps > JAM_CURRENT) {
+                        backingOff = true;
+                        follower.holdPoint(gateBackoff);
+                        backoffTimer.resetTimer();
+                    }
+                } else if (backoffTimer.getElapsedTimeSeconds() >= 0.35) {
+                    backingOff = false;
+                    follower.holdPoint(deschideCombinat);
+                }
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 2.5) {
+                    backingOff = false;
                     intakePornit = false;
                     pregatireShooter();
                     follower.followPath(Trage_Gata);
@@ -601,6 +632,6 @@ public class FirstAuto extends OpMode {
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
         n.scula.setPower(0);
-        n.bascula.setPosition(0.5807);
+        n.bascula.setPosition(Pozitii.sede);
     }
 }
