@@ -1,18 +1,19 @@
-/*
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+import java.util.List;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
@@ -20,271 +21,330 @@ import org.firstinspires.ftc.teamcode.RobotPozitie;
 import org.firstinspires.ftc.teamcode.pop;
 import org.firstinspires.ftc.teamcode.sistemeAuto;
 
-@Autonomous
+@Autonomous(name = "FirstAutoV2")
 public class FirstAutoV2 extends OpMode {
-    sistemeAuto n = new sistemeAuto();
-    private Follower follower;
-    private Timer pathTimer, actionTimer, opmodeTimer;
-    private int pathState;
-    private Limelight3A limelight3A;
 
+    // =====================================================================
+    // SHOOTER — reglate o singura data, nu mai trebuie atinse
+    // =====================================================================
+    private static final double VELOCITY_TARGET    = 1550;
+    private static final double VELOCITY_TOLERANCE = 100;    // +/-100 ticks/s
+    private static final double SERVO_MIN_TIME     = 0.18;   // min timp servo travel (s)
+    private static final double SHOT_TIMEOUT_FIRST = 0.40;   // timeout primul tir (s)
+    private static final double SHOT_TIMEOUT_NEXT  = 0.30;   // timeout tiruri urmatoare (s)
+    private static final double TURRET_AIM_TOL     = 5.0;    // eroare turela maxima (grade)
+
+    // =====================================================================
+    // TIMEOUTS — reglate o singura data
+    // =====================================================================
+    private static final double PATH_TIMEOUT         = 5.0;  // timeout path normal (s)
+    private static final double COLLECT_PATH_TIMEOUT = 6.0;  // timeout path colectare (s)
+    private static final double SHOOT_CYCLE_TIMEOUT  = 3.0;  // timeout ciclu tragere complet (s)
+    private static final double COLLECT_WAIT_L2      = 0.3;  // asteptare extra la L2 (s)
+    private static final double COLLECT_WAIT_L1      = 0.5;  // asteptare extra la L1 (s)
+    private static final double COLLECT_WAIT_GATE    = 1.5;  // asteptare la gate (s)
+
+    // =====================================================================
+    // TIME BUDGET — sari cicluri daca nu mai e timp
+    // =====================================================================
+    private static final double SKIP_L1_AFTER    = 19.0;     // sari L1+Gate#2 daca elapsed > 19s
+    private static final double SKIP_GATE2_AFTER = 23.0;     // sari Gate#2 daca elapsed > 23s
+    private static final double EMERGENCY_STOP   = 29.5;     // opreste tot la 29.5s
+
+    // =====================================================================
+    // TRAJECTORIES — SINGURELE valori de reglat pe teren!
+    // =====================================================================
+    private final Pose startPose        = new Pose(31.9423076923077, 138.67307692307696, Math.toRadians(180));
+    private final Pose tragere1         = new Pose(59.36913357400721, 87.05873368508746, Math.toRadians(180));
+    private final Pose aduna1           = new Pose(59.3076923076923, 100.5785892807554, Math.toRadians(180));
+    private final Pose aluat1           = new Pose(21.55244755244755, 89.05804195804195, Math.toRadians(180));
+    private final Pose tras1            = new Pose(58.72027972027973, 87.74825174825179, Math.toRadians(180));
+    private final Pose aduna2           = new Pose(51.53846153846153, 58.84615384615384, Math.toRadians(180));
+    private final Pose aluat2           = new Pose(19.67307692307692, 63.65384615384616, Math.toRadians(180));
+    private final Pose tras2            = new Pose(59.36913357400721, 100.5785892807554, Math.toRadians(180));
+    private final Pose returnToBase     = new Pose(28.790209790209786, 93.66433566433567, Math.toRadians(180));
+    private final Pose deschideCombinat = new Pose(5.307692307692307, 62.07692307692307, Math.toRadians(135));
+    private final Pose lansareGate      = new Pose(59.36913357400721, 87.5785892807554, Math.toRadians(180));
+    private final Pose preGate          = new Pose(10.692307692307686, 75.44230769230768, Math.toRadians(90));
+    private final Pose midGate          = new Pose(44, 85, Math.toRadians(135));
+
+    // =====================================================================
+    // SHOOTING ORDER + TRACKING TARGET
+    // =====================================================================
+    private static final double[] SHOOT_POS = {Pozitii.aruncare1, Pozitii.aruncare3, Pozitii.aruncare2};
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 144;
 
-    private final Pose startPose = new Pose(24.503496503496507, 128.8951048951049, Math.toRadians(142));
-    private final Pose tragere1 = new Pose(55.552447552447546, 96.15384615384616, Math.toRadians(180));
-    private final Pose aduna1 = new Pose(55.3076923076923, 86.93706293706293, Math.toRadians(180));
-    private final Pose aluat1 = new Pose(23.55244755244755, 89.05804195804195, Math.toRadians(180));
-    private final Pose ARatat1 = new Pose(71.87014034916132,68.10259670399529, Math.toRadians(180));;
-    private final Pose tras1 = new Pose(55.552447552447546, 94.15384615384616, Math.toRadians(180));
-    private final Pose aduna2 = new Pose(50.106900092914074, 67.40006846300551, Math.toRadians(180));
-    private final Pose aluat2 = new Pose(20.034965034965033, 59.77223772237, Math.toRadians(180));
-    private final Pose ARatat2 = new Pose(71.54895104895104,48.56293706293705, Math.toRadians(180));
-    private final Pose tras2 = new Pose(55.12587412587412, 90.62937062937063, Math.toRadians(180));
-    private final Pose aduna3 = new Pose(50.25644285784146, 44.934813438309924, Math.toRadians(180));
-    private final Pose aluat3 = new Pose(24.063636363636363, 39.78321678321679, Math.toRadians(180));
-    private final Pose tras3 = new Pose(53.13218250281188, 94.38720719839603, Math.toRadians(180));
-
-
-
-    private Path scorePreload;
-    private PathChain ceva1, Miss1, trasUnu, ceva2, Miss2, trasDoi, ceva3, trasTrei;
-
+    // =====================================================================
+    // INTERNAL STATE
+    // =====================================================================
+    sistemeAuto n = new sistemeAuto();
+    public Follower follower;
+    private List<LynxModule> hubs;
+    private Timer pathTimer, actionTimer, opmodeTimer;
+    private int pathState;
     private boolean TragereInProgres = false;
-    private int ballsShot = 0;
     private int ShootingStare = 0;
-    private boolean shooterPreparado = false;
+    private int ShootSlot = 0;
+    private int idTag = 0;
+    private int shotsGood = 0;
+    private int shotsTimeout = 0;
+    private volatile boolean intakePornit = false;
+    private volatile boolean stop = false;
+    private final boolean[] slotOcupat = new boolean[3];
+    private final Object slotLock = new Object();
+    private PathChain scorePreload, collectare2, trasDoi, DuceGate, Trage_Gata;
+    private PathChain collectare1, trasUnu, DucePreGate2, returnarea;
+    private Thread Intake;
+    private Thread TrackingT;
 
-    private volatile boolean[] slotOcupat = new boolean[3];
-    private volatile int nextSlotToFill = 0;
-
+    // =====================================================================
+    // SLOT MANAGEMENT — thread-safe
+    // =====================================================================
     private int getLoculete() {
-        int count = 0;
-        for (boolean occupied : slotOcupat) {
-            if (occupied) count++;
+        synchronized (slotLock) {
+            int count = 0;
+            for (boolean occupied : slotOcupat) {
+                if (occupied) count++;
+            }
+            return count;
         }
-        return count;
     }
+
+    private void resetSlots() {
+        synchronized (slotLock) {
+            slotOcupat[0] = false;
+            slotOcupat[1] = false;
+            slotOcupat[2] = false;
+        }
+    }
+
+    private void fillSlots() {
+        synchronized (slotLock) {
+            slotOcupat[0] = true;
+            slotOcupat[1] = true;
+            slotOcupat[2] = true;
+        }
+    }
+
+    // =====================================================================
+    // PATH BUILDING
+    // =====================================================================
     public void buildPaths() {
-        scorePreload = new Path(new BezierLine(startPose, tragere1));
-        scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), tragere1.getHeading());
-        ceva1 = follower.pathBuilder()
-                .addPath(new BezierCurve(tragere1, aduna1))
-                .setLinearHeadingInterpolation(tragere1.getHeading(),aduna1.getHeading())
-                .addPath(new BezierLine(aduna1, aluat1))
-                .setLinearHeadingInterpolation(tragere1.getHeading(), aluat1.getHeading())
+        scorePreload = follower.pathBuilder()
+                .addPath(new BezierLine(startPose, tragere1))
+                .setLinearHeadingInterpolation(startPose.getHeading(), tragere1.getHeading())
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .build();
-        Miss1 = follower.pathBuilder()
-                .addPath(new BezierCurve(aluat1, ARatat1))
-                .setLinearHeadingInterpolation(aluat1.getHeading(), ARatat1.getHeading())
-                .addPath(new BezierLine(ARatat1,aluat2))
-                .setLinearHeadingInterpolation(ARatat1.getHeading(),aluat2.getHeading())
+
+        collectare2 = follower.pathBuilder()
+                .addPath(new BezierCurve(tragere1, aduna2, aluat2))
+                .setLinearHeadingInterpolation(tragere1.getHeading(), aluat2.getHeading())
                 .build();
-        trasUnu = follower.pathBuilder()
-                .addPath(new BezierLine(aluat1, tras1))
-                .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
-                .build();
-        ceva2 = follower.pathBuilder()
-                .addPath(new BezierCurve(tras1, aduna2))
-                .setLinearHeadingInterpolation(tras1.getHeading(),aduna2.getHeading())
-                .addPath(new BezierLine(aduna2, aluat2))
-                .setLinearHeadingInterpolation(tras1.getHeading(), aluat2.getHeading())
-                .build();
-        Miss2 = follower.pathBuilder()
-                .addPath(new BezierCurve(aluat2, ARatat2))
-                .setLinearHeadingInterpolation(aluat2.getHeading(), ARatat2.getHeading())
-                .addPath(new BezierLine(ARatat2, aluat3))
-                .setLinearHeadingInterpolation(ARatat2.getHeading(), aluat3.getHeading())
-                .build();
+
         trasDoi = follower.pathBuilder()
                 .addPath(new BezierLine(aluat2, tras2))
                 .setLinearHeadingInterpolation(aluat2.getHeading(), tras2.getHeading())
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
                 .build();
-        ceva3 = follower.pathBuilder()
-                .addPath(new BezierCurve(tras2, aduna3))
-                .setLinearHeadingInterpolation(tras2.getHeading(), aduna3.getHeading())
-                .addPath(new BezierLine(aduna3, aluat3))
-                .setLinearHeadingInterpolation(tras2.getHeading(), aluat3.getHeading())
+
+        DuceGate = follower.pathBuilder()
+                .addPath(new BezierLine(tras2, midGate))
+                .setLinearHeadingInterpolation(tras2.getHeading(), midGate.getHeading())
+                .addPath(new BezierLine(midGate, preGate))
+                .setLinearHeadingInterpolation(midGate.getHeading(), preGate.getHeading())
+                .addPath(new BezierCurve(preGate, deschideCombinat))
+                .setLinearHeadingInterpolation(preGate.getHeading(), deschideCombinat.getHeading())
+                .setGlobalDeceleration(4.0)
+                .setBrakingStart(2.0)
                 .build();
-        trasTrei = follower.pathBuilder()
-                .addPath(new BezierLine(aluat3, tras3))
-                .setLinearHeadingInterpolation(aluat3.getHeading(), tras3.getHeading())
+
+        Trage_Gata = follower.pathBuilder()
+                .addPath(new BezierLine(deschideCombinat, lansareGate))
+                .setLinearHeadingInterpolation(deschideCombinat.getHeading(), lansareGate.getHeading())
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
+                .build();
+
+        collectare1 = follower.pathBuilder()
+                .addPath(new BezierCurve(lansareGate, aduna1, aluat1))
+                .setLinearHeadingInterpolation(lansareGate.getHeading(), aluat1.getHeading())
+                .build();
+
+        trasUnu = follower.pathBuilder()
+                .addPath(new BezierLine(aluat1, tras1))
+                .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
+                .setGlobalDeceleration(5.0)
+                .setBrakingStart(2.5)
+                .build();
+
+        DucePreGate2 = follower.pathBuilder()
+                .addPath(new BezierLine(tras1, midGate))
+                .setLinearHeadingInterpolation(tras1.getHeading(), midGate.getHeading())
+                .addPath(new BezierLine(midGate, preGate))
+                .setLinearHeadingInterpolation(midGate.getHeading(), preGate.getHeading())
+                .addPath(new BezierCurve(preGate, deschideCombinat))
+                .setLinearHeadingInterpolation(preGate.getHeading(), deschideCombinat.getHeading())
+                .setGlobalDeceleration(4.0)
+                .setBrakingStart(2.0)
+                .build();
+
+        returnarea = follower.pathBuilder()
+                .addPath(new BezierLine(lansareGate, returnToBase))
+                .setLinearHeadingInterpolation(lansareGate.getHeading(), returnToBase.getHeading())
                 .build();
     }
 
+    // =====================================================================
+    // SHOOTER HELPERS
+    // =====================================================================
     private void pregatireShooter() {
-        if (!shooterPreparado) {
-            PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF );
-            n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-            n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-            n.shooter.setVelocity(1450);
-            n.shooter2.setVelocity(1450);
-            n.unghiD.setPosition(pop.posUnghi);
-            shooterPreparado = true;
-        }
+        n.applyVoltageCompensatedPIDF();
+        n.shooter.setVelocity(VELOCITY_TARGET);
+        n.shooter2.setVelocity(VELOCITY_TARGET);
+        n.unghiD.setPosition(pop.posUnghi);
+        n.sortare.setPosition(Pozitii.aruncare1);
     }
 
-    private int currentShootSlot = 2;
+    // Termina ciclul fara sa opreasca shooterele (raman spinning)
+    private void finishShootingCycle() {
+        n.bascula.setPosition(Pozitii.sede);
+        n.scula.setPower(0);
+        n.sortare.setPosition(Pozitii.luarea1);
+        TragereInProgres = false;
+        ShootingStare = 0;
+    }
 
+    // Opreste TOTUL — doar la parcare si end
+    private void fullShutdown() {
+        n.shooter.setVelocity(0);
+        n.shooter2.setVelocity(0);
+        n.intake.setPower(0);
+        n.scula.setPower(0);
+        n.bascula.setPosition(Pozitii.sede);
+        n.sortare.setPosition(Pozitii.luarea1);
+        intakePornit = false;
+        TragereInProgres = false;
+        ShootingStare = 0;
+    }
+
+    // Park din orice pozitie curenta
+    private void parkFromCurrentPose() {
+        Pose cur = follower.getPose();
+        PathChain park = follower.pathBuilder()
+                .addPath(new BezierLine(cur, returnToBase))
+                .setLinearHeadingInterpolation(cur.getHeading(), returnToBase.getHeading())
+                .build();
+        follower.followPath(park);
+    }
+
+    // =====================================================================
+    // VELOCITY-GATED SHOOTING
+    // Trage MEREU 3 sloturi. Asteapta velocity + turela OK, cu timeout backup.
+    // Shooterele NU se opresc dupa — raman spinning.
+    // =====================================================================
     private void TragereLaPupitru() {
         switch (ShootingStare) {
             case 0:
-                if (!shooterPreparado) {
-                    PIDFCoefficients pid = new PIDFCoefficients(n.SkP, n.SkI, n.SkD, n.SkF);
-                    n.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                    n.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, pid);
-                    n.shooter.setVelocity(1450);
-                    n.shooter2.setVelocity(1450);
-                    n.unghiD.setPosition(pop.posUnghi);
-                    actionTimer.resetTimer();
-                    ShootingStare = 1;
-                } else {
-                    ballsShot = 0;
-                    currentShootSlot = 2;
-                    ShootingStare = 2;
-                }
-                track();
+                ShootSlot = 0;
+                n.scula.setPower(-1);
+                n.bascula.setPosition(Pozitii.lansareRapid);
+                n.applyVoltageCompensatedPIDF();
+                n.shooter.setVelocity(VELOCITY_TARGET);
+                n.shooter2.setVelocity(VELOCITY_TARGET);
+                n.unghiD.setPosition(pop.posUnghi);
+                idTag = n.detectIdTag();
+                n.sortare.setPosition(SHOOT_POS[0]);
+                actionTimer.resetTimer();
+                ShootingStare = 1;
                 break;
 
             case 1:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
-                    ballsShot = 0;
-                    currentShootSlot = 2;
-                    ShootingStare = 2;
+                double elapsed = actionTimer.getElapsedTimeSeconds();
+                double timeout = ShootSlot == 0 ? SHOT_TIMEOUT_FIRST : SHOT_TIMEOUT_NEXT;
+
+                boolean servoReady = elapsed >= SERVO_MIN_TIME;
+                boolean velocityOK = Math.abs(n.shooter.getVelocity() - VELOCITY_TARGET) < VELOCITY_TOLERANCE
+                                  && Math.abs(n.shooter2.getVelocity() - VELOCITY_TARGET) < VELOCITY_TOLERANCE;
+                boolean turretOK = n.getTurelaError() < TURRET_AIM_TOL;
+                boolean qualityShot = servoReady && velocityOK && turretOK;
+
+                if (qualityShot || elapsed >= timeout) {
+                    if (qualityShot) {
+                        shotsGood++;
+                    } else {
+                        shotsTimeout++;
+                    }
+
+                    ShootSlot++;
+                    if (ShootSlot > 2) {
+                        finishShootingCycle();
+                    } else {
+                        n.applyVoltageCompensatedPIDF();
+                        n.sortare.setPosition(SHOOT_POS[ShootSlot]);
+                        actionTimer.resetTimer();
+                    }
                 }
-                break;
-
-            case 2:
-                while (currentShootSlot >= 0 && !slotOcupat[currentShootSlot]) {
-                    currentShootSlot--;
-                }
-
-                if (currentShootSlot >= 0 && slotOcupat[currentShootSlot]) {
-                    ShootingStare = 3;
-                } else {
-                    ShootingStare = 10;
-                }
-                break;
-
-            case 3:
-                if (currentShootSlot == 0) {
-                    n.sortare.setPosition(Pozitii.aruncare1);
-                } else if (currentShootSlot == 1) {
-                    n.sortare.setPosition(Pozitii.aruncare2);
-                } else if (currentShootSlot == 2) {
-                    n.sortare.setPosition(Pozitii.aruncare3);
-                }
-                actionTimer.resetTimer();
-                ShootingStare = 4;
-                break;
-
-            case 4:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.85) {
-                    ShootingStare = 5;
-                }
-                break;
-
-            case 5:
-                n.Saruncare.setPosition(Pozitii.lansare);
-                actionTimer.resetTimer();
-                ShootingStare = 6;
-                break;
-
-            case 6:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.15 ) {
-                    ShootingStare = 7;
-                }
-                break;
-
-            case 7:
-                n.Saruncare.setPosition(Pozitii.coborare);
-                actionTimer.resetTimer();
-                ShootingStare = 8;
-                break;
-
-            case 8:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.2) {
-                    slotOcupat[currentShootSlot] = false;
-                    ballsShot++;
-                    currentShootSlot--;
-                    ShootingStare = 2;
-                }
-                break;
-
-            case 10:
-                n.sortare.setPosition(Pozitii.luarea1);
-                actionTimer.resetTimer();
-                ShootingStare = 11;
-                break;
-
-            case 11:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.3) {
-                    n.shooter.setVelocity(750);
-                    n.shooter2.setVelocity(750);
-                    ShootingStare = 12;
-                }
-                break;
-
-            case 12:
-                slotOcupat[0] = false;
-                slotOcupat[1] = false;
-                slotOcupat[2] = false;
-                TragereInProgres = false;
-                shooterPreparado = false;
-                ShootingStare = 0;
                 break;
         }
     }
 
-    private volatile boolean intakePornit = false;
-    private volatile boolean stop = false;
-    private Thread IntakeThread;
-
-    private void Intake() {
-        IntakeThread = new Thread(new Runnable() {
+    // =====================================================================
+    // INTAKE THREAD
+    // =====================================================================
+    private void createIntakeThread() {
+        Intake = new Thread(new Runnable() {
             private boolean ballBeingProcessed = false;
+            private long lastDistReadTime = 0;
 
             @Override
             public void run() {
                 while (!stop) {
+                    try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+
+                    long now = System.currentTimeMillis();
+                    if (now - lastDistReadTime >= 50) {
+                        n.cachedDistanta = n.distanta.getDistance(DistanceUnit.CM);
+                        lastDistReadTime = now;
+                    }
+
+                    double leDistanta = n.cachedDistanta;
                     int loculete = getLoculete();
+
                     if (intakePornit && loculete < 3) {
                         n.intake.setPower(1);
 
-                        double leDistanta = n.distanta.getDistance(DistanceUnit.CM);
-
                         if (leDistanta < 20 && !ballBeingProcessed) {
                             ballBeingProcessed = true;
-
                             double servoPos = n.sortare.getPosition();
 
-                            if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
-                                slotOcupat[0] = true;
-                                n.kdf(45);
-                                if (!slotOcupat[1]) {
-                                    n.sortare.setPosition(Pozitii.luarea2);
-                                } else if (!slotOcupat[2]) {
-                                    n.sortare.setPosition(Pozitii.luarea3);
-                                }
-
-                            } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
-                                slotOcupat[1] = true;
-                                n.kdf(45);
-                                if (!slotOcupat[2]) {
-                                    n.sortare.setPosition(Pozitii.luarea3);
-                                } else if (!slotOcupat[0]) {
-                                    n.sortare.setPosition(Pozitii.luarea1);
-                                }
-
-                            } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
-                                slotOcupat[2] = true;
-                                n.kdf(45);
-                                if (!slotOcupat[0]) {
-                                    n.sortare.setPosition(Pozitii.luarea1);
-                                } else if (!slotOcupat[1]) {
-                                    n.sortare.setPosition(Pozitii.luarea2);
+                            synchronized (slotLock) {
+                                if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
+                                    slotOcupat[0] = true;
+                                    if (!slotOcupat[1]) {
+                                        n.sortare.setPosition(Pozitii.luarea2);
+                                    } else if (!slotOcupat[2]) {
+                                        n.sortare.setPosition(Pozitii.luarea3);
+                                    }
+                                } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
+                                    slotOcupat[1] = true;
+                                    if (!slotOcupat[2]) {
+                                        n.sortare.setPosition(Pozitii.luarea3);
+                                    } else if (!slotOcupat[0]) {
+                                        n.sortare.setPosition(Pozitii.luarea1);
+                                    }
+                                } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
+                                    slotOcupat[2] = true;
+                                    if (!slotOcupat[0]) {
+                                        n.sortare.setPosition(Pozitii.luarea1);
+                                    } else if (!slotOcupat[1]) {
+                                        n.sortare.setPosition(Pozitii.luarea2);
+                                    }
                                 }
                             }
+                            n.kdf(80);
 
                         } else if (leDistanta >= 20 && ballBeingProcessed) {
                             ballBeingProcessed = false;
@@ -295,261 +355,272 @@ public class FirstAutoV2 extends OpMode {
                     }
                 }
             }
-        });
+        }, "AutoIntake");
     }
 
-
-
-    private void track() {
-        n.track(follower, TARGET_X, TARGET_Y);
+    // =====================================================================
+    // TRACKING THREAD
+    // =====================================================================
+    private void startTracking() {
+        TrackingT = new Thread(() -> {
+            while (!stop) {
+                try { Thread.sleep(5); } catch (InterruptedException e) { break; }
+                n.tracks(follower, TARGET_X, TARGET_Y);
+            }
+            n.turelaD.setPosition(0.5);
+            n.turelaS.setPosition(0.5);
+        }, "AutoTracking");
+        TrackingT.start();
     }
 
-
+    // =====================================================================
+    // STATE MACHINE
+    // Flow: Preload(3) -> L2(3) -> Gate#1(3) -> L1(3) -> Gate#2(3) -> Park
+    // Total maxim: 15 artefacte
+    // States: 0-2 Preload, 3-5 CollectL2, 6-8 ShootL2,
+    //         9-11 Gate#1, 12-13 ShootGate#1,
+    //         14-16 CollectL1, 17-19 ShootL1,
+    //         20-22 Gate#2, 23-24 ShootGate#2,
+    //         25-26 Park, 28 EmergencyPark
+    // =====================================================================
     public void autonomousPathUpdate() {
         switch (pathState) {
+
+            // ========== PRELOAD ==========
             case 0:
                 follower.followPath(scorePreload);
+                pregatireShooter();
                 setPathState(1);
                 break;
-
             case 1:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
                     follower.holdPoint(tragere1);
+                    n.resetLimelightCorrection();
+                    TragereInProgres = true;
+                    ShootingStare = 0;
                     setPathState(2);
                 }
                 break;
-
             case 2:
-                track();
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
-                }
                 TragereLaPupitru();
-                if (!TragereInProgres) {
-                    actionTimer.resetTimer();
-                    setPathState(25);
-                }
-                break;
-
-            case 25:
-                if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
+                if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
+                    if (TragereInProgres) finishShootingCycle();
                     setPathState(3);
                 }
                 break;
 
+            // ========== COLLECT LINE 2 ==========
             case 3:
-                follower.followPath(ceva1);
-                setPathState(30);
+                resetSlots();
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare2);
+                setPathState(4);
                 break;
-
-
             case 4:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat1);
+                if (getLoculete() >= 3) {
+                    intakePornit = false;
+                    setPathState(6);
+                } else if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
+                    follower.holdPoint(aluat2);
                     actionTimer.resetTimer();
                     setPathState(5);
                 }
                 break;
-
             case 5:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.5) {
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_L2) {
                     intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(50);
-                    } else {
-                        setPathState(6);
-                    }
+                    setPathState(6);
                 }
                 break;
 
+            // ========== SHOOT LINE 2 ==========
             case 6:
                 intakePornit = false;
                 pregatireShooter();
-                follower.followPath(trasUnu);
+                follower.followPath(trasDoi);
                 setPathState(7);
                 break;
-
             case 7:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras1);
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    follower.holdPoint(tras2);
+                    n.resetLimelightCorrection();
+                    TragereInProgres = true;
+                    ShootingStare = 0;
                     setPathState(8);
                 }
                 break;
-
             case 8:
-                track();
-
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
-                }
-
                 TragereLaPupitru();
-
-                if (!TragereInProgres) {
+                if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
+                    if (TragereInProgres) finishShootingCycle();
                     setPathState(9);
                 }
                 break;
 
+            // ========== GATE #1 ==========
             case 9:
-                follower.followPath(ceva2);
-                setPathState(90);
+                resetSlots();
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(DuceGate);
+                setPathState(10);
                 break;
-
             case 10:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat2);
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
+                    follower.holdPoint(deschideCombinat);
                     actionTimer.resetTimer();
                     setPathState(11);
                 }
                 break;
-
             case 11:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.5) {
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_GATE) {
                     intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(60);
-                    } else {
-                        setPathState(12);
-                    }
+                    pregatireShooter();
+                    follower.followPath(Trage_Gata);
+                    setPathState(12);
                 }
                 break;
 
+            // ========== SHOOT GATE #1 ==========
             case 12:
-                pregatireShooter();
-                intakePornit = false;
-                follower.followPath(trasDoi);
-                setPathState(13);
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    follower.holdPoint(lansareGate);
+                    n.resetLimelightCorrection();
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                    setPathState(13);
+                }
                 break;
-
             case 13:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras2);
+                TragereLaPupitru();
+                if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
+                    if (TragereInProgres) finishShootingCycle();
                     setPathState(14);
                 }
                 break;
 
+            // ========== COLLECT LINE 1 ==========
             case 14:
-                track();
-
-                if (!TragereInProgres) {
-                    TragereInProgres = true;
-                    ShootingStare = 0;
+                if (opmodeTimer.getElapsedTimeSeconds() > SKIP_L1_AFTER) {
+                    parkFromCurrentPose();
+                    setPathState(28);
+                    break;
                 }
-
-                TragereLaPupitru();
-
-                if (!TragereInProgres) {
-                    setPathState(15);
-                }
+                resetSlots();
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare1);
+                setPathState(15);
                 break;
-
             case 15:
-                follower.followPath(ceva3);
-                setPathState(150);
-                break;
-
-            case 16:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat3);
+                if (getLoculete() >= 3) {
+                    intakePornit = false;
+                    setPathState(17);
+                } else if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
+                    follower.holdPoint(aluat1);
                     actionTimer.resetTimer();
+                    setPathState(16);
+                }
+                break;
+            case 16:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_L1) {
+                    intakePornit = false;
                     setPathState(17);
                 }
                 break;
 
+            // ========== SHOOT LINE 1 ==========
             case 17:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.55) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(21);
-                    } else {
-                        setPathState(18);
-                    }
+                intakePornit = false;
+                pregatireShooter();
+                follower.followPath(trasUnu);
+                setPathState(18);
+                break;
+            case 18:
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    follower.holdPoint(tras1);
+                    n.resetLimelightCorrection();
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                    setPathState(19);
                 }
                 break;
-
-            case 18:
-                pregatireShooter();
-                intakePornit = false;
-                follower.followPath(trasTrei);
-                setPathState(19);
-                break;
-
             case 19:
-                track();
-                if (!follower.isBusy()) {
-                    follower.holdPoint(tras3);
+                TragereLaPupitru();
+                if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
+                    if (TragereInProgres) finishShootingCycle();
                     setPathState(20);
                 }
                 break;
 
+            // ========== GATE #2 ==========
             case 20:
-                track();
+                if (opmodeTimer.getElapsedTimeSeconds() > SKIP_GATE2_AFTER) {
+                    parkFromCurrentPose();
+                    setPathState(28);
+                    break;
+                }
+                resetSlots();
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(DucePreGate2);
+                setPathState(21);
+                break;
+            case 21:
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
+                    follower.holdPoint(deschideCombinat);
+                    actionTimer.resetTimer();
+                    setPathState(22);
+                }
+                break;
+            case 22:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_GATE) {
+                    intakePornit = false;
+                    pregatireShooter();
+                    follower.followPath(Trage_Gata);
+                    setPathState(23);
+                }
+                break;
 
-                if (!TragereInProgres) {
+            // ========== SHOOT GATE #2 ==========
+            case 23:
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    follower.holdPoint(lansareGate);
+                    n.resetLimelightCorrection();
                     TragereInProgres = true;
                     ShootingStare = 0;
+                    setPathState(24);
                 }
-
+                break;
+            case 24:
                 TragereLaPupitru();
-
-                if (!TragereInProgres) {
-                    setPathState(21);
+                if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
+                    if (TragereInProgres) finishShootingCycle();
+                    setPathState(25);
                 }
                 break;
 
-            case 21:
-                setPathState(-1);
+            // ========== PARK ==========
+            case 25:
+                n.shooter.setVelocity(0);
+                n.shooter2.setVelocity(0);
+                follower.followPath(returnarea, false);
+                setPathState(26);
                 break;
-
-            case 50:
-                follower.followPath(Miss1);
-                setPathState(51);
-                break;
-
-            case 52:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat2);
-                    actionTimer.resetTimer();
-                    setPathState(53);
+            case 26:
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    setPathState(-1);
                 }
                 break;
 
-            case 53:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.55) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(60);
-                    } else {
-                        setPathState(12);
-                    }
-                }
-                break;
-
-            case 60:
-                follower.followPath(Miss2);
-                setPathState(61);
-                break;
-
-            case 62:
-                if (!follower.isBusy()) {
-                    follower.holdPoint(aluat3);
-                    actionTimer.resetTimer();
-                    setPathState(63);
-                }
-                break;
-
-            case 63:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.55) {
-                    intakePornit = false;
-                    if (getLoculete() == 0) {
-                        setPathState(21);
-                    } else {
-                        setPathState(18);
-                    }
+            // ========== EMERGENCY PARK (from time skip) ==========
+            case 28:
+                n.shooter.setVelocity(0);
+                n.shooter2.setVelocity(0);
+                intakePornit = false;
+                if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
+                    setPathState(-1);
                 }
                 break;
 
@@ -563,21 +634,45 @@ public class FirstAutoV2 extends OpMode {
         pathTimer.resetTimer();
     }
 
+    // =====================================================================
+    // OPMODE LIFECYCLE
+    // =====================================================================
     @Override
     public void loop() {
+        if (opmodeTimer.getElapsedTimeSeconds() >= EMERGENCY_STOP) {
+            fullShutdown();
+            stop = true;
+            requestOpModeStop();
+            return;
+        }
+
+        for (LynxModule hub : hubs) {
+            hub.clearBulkCache();
+        }
+
         follower.update();
-        telemetry.addData("ungih",n.unghiD.getPosition());
-        telemetry.update();
         autonomousPathUpdate();
+
+        Pose p = follower.getPose();
+        telemetry.addData("S", "%d|%d", pathState, ShootingStare);
+        telemetry.addData("T", "%.1f", opmodeTimer.getElapsedTimeSeconds());
+        telemetry.addData("B", "%d/3", getLoculete());
+        telemetry.addData("P", "%.1f, %.1f, %.0f", p.getX(), p.getY(), Math.toDegrees(p.getHeading()));
+        telemetry.addData("Q", "%d/%d", shotsGood, shotsGood + shotsTimeout);
+        telemetry.update();
     }
 
     @Override
     public void init() {
-        n.initsisteme(hardwareMap);
+        hubs = hardwareMap.getAll(LynxModule.class);
+        for (LynxModule hub : hubs) {
+            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+        }
 
-        limelight3A = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight3A.pipelineSwitch(1);
-        limelight3A.start();
+        n.initsisteme(hardwareMap);
+        n.limelight.pipelineSwitch(0);
+        n.bascula.setPosition(Pozitii.sede);
+        n.sortare.setPosition(Pozitii.luarea1);
 
         pathTimer = new Timer();
         actionTimer = new Timer();
@@ -585,14 +680,26 @@ public class FirstAutoV2 extends OpMode {
         opmodeTimer.resetTimer();
 
         follower = Constants.createFollower(hardwareMap);
+
+        GoBildaPinpointDriver pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.recalibrateIMU();
+        ElapsedTime calibTimer = new ElapsedTime();
+        while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
+                && calibTimer.milliseconds() < 2000) {
+        }
+
         buildPaths();
         follower.setStartingPose(startPose);
-
+        follower.update();
     }
 
     @Override
     public void init_loop() {
-
+        telemetry.addData("Voltage", "%.2fV", n.voltageSensor.getVoltage());
+        GoBildaPinpointDriver pp = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        telemetry.addData("Pinpoint", pp.getDeviceStatus().toString());
+        telemetry.addData("LL", n.limelight.isConnected() ? "OK" : "DISCONNECTED");
+        telemetry.update();
     }
 
     @Override
@@ -600,30 +707,44 @@ public class FirstAutoV2 extends OpMode {
         opmodeTimer.resetTimer();
         setPathState(0);
         TragereInProgres = false;
+        ShootingStare = 0;
         stop = false;
         intakePornit = false;
+        shotsGood = 0;
+        shotsTimeout = 0;
 
-        slotOcupat[0] = true;
-        slotOcupat[1] = true;
-        slotOcupat[2] = true;
+        fillSlots();
 
-        Intake();
-        IntakeThread.start();
+        n.limelight.pipelineSwitch(0);
+        n.resetTurelaPID();
+
+        // Shooterele pornesc ACUM si raman ON pana la parcare
+        n.applyVoltageCompensatedPIDF();
+        n.shooter.setVelocity(VELOCITY_TARGET);
+        n.shooter2.setVelocity(VELOCITY_TARGET);
+
+        createIntakeThread();
+        Intake.start();
+        startTracking();
     }
 
     @Override
     public void stop() {
         stop = true;
 
+        if (TrackingT != null) TrackingT.interrupt();
+        if (Intake != null) Intake.interrupt();
+
         Pose currentPose = follower.getPose();
-        RobotPozitie.turelaPosition = n.turela.getCurrentPosition();
-        RobotPozitie.idTag = n.idTag;
         RobotPozitie.X = currentPose.getX();
         RobotPozitie.Y = currentPose.getY();
         RobotPozitie.heading = currentPose.getHeading();
+        RobotPozitie.idTag = idTag;
 
         n.shooter.setVelocity(0);
         n.shooter2.setVelocity(0);
         n.intake.setPower(0);
+        n.scula.setPower(0);
+        n.bascula.setPosition(Pozitii.sede);
     }
-}*/
+}
