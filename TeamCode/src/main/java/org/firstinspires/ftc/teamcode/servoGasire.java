@@ -15,7 +15,7 @@ public class servoGasire extends LinearOpMode {
     double pos = 0.5,pos2 = 0.5;
     private ServoImplEx aruncare, sortare, unghiD, unghiS,turelaS,turelaD,bascula;
     private DcMotorEx turela;
-//int pos;
+    //int pos;
     @Override
     public void runOpMode() {
 
@@ -53,7 +53,7 @@ public class servoGasire extends LinearOpMode {
 //
 //            unghiS.setPosition(pos);
             if(pos <= 1.0 || pos >= 0.0) {
-                            sortare.setPosition(pos);
+                sortare.setPosition(pos);
 //                turelaD.setPosition(pos);
 //                turelaS.setPosition(pos);
             }

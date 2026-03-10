@@ -671,7 +671,7 @@ public class AproapeRosu extends OpMode {
                 break;
 
             case 10:
-               synchronized (slot) {
+                synchronized (slot) {
                     slotOcupat[0] = false;
                     slotOcupat[1] = false;
                     slotOcupat[2] = false;

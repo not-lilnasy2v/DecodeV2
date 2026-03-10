@@ -563,4 +563,3 @@ public class sistemeAuto {
         return Math.max(min, Math.min(max, val));
     }
 }
-
