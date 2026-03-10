@@ -46,30 +46,31 @@ public class TelR extends OpMode {
     private ServoImplExEx turelaD;
     private ServoImplExEx turelaS;
 
-    private static final double LIMITA_STANGA_GRADE = -219.9;
-    private static final double LIMITA_DREAPTA_GRADE = 218.3;
-    private static final double REFERINTA_VOLTAJ_D = 0.3730;
-    private static final double SCALE_FACTOR = 2.435;
 
-    public static double ALPHA = 0.25;
+    private static final double LIMITA_STANGA_GRADE = -221.5;
+    private static final double LIMITA_DREAPTA_GRADE = 191.1;
+    private static final double REFERINTA_VOLTAJ_D = 0.5120;
+    private static final double SCALE_FACTOR = 2.292;
+    public static double ALPHA = 0.30;
     public static double MAX_OFFSET = 35.0;
-    public static double DECAY = 1.0;
-    public static double GAIN_DEG = 1.5;
+    public static double DECAY = 0.97;
+    public static double GAIN_DEG = 1.0;
     public static double HR_FILTER = 0.30;
-    public static double T_ALPHA = 0.45;
-    public static double SERVO_KP = 0.0027;
-    public static double SERVO_KD = 0.00008;
+    public static double T_ALPHA = 0.50;
+    public static double SERVO_KP = 0.0030;
+    public static double SERVO_KD = 0.0005;
     public static double SERVO_MIN_POWER = 0.05;
     public static double SERVO_MAX_POWER = 0.50;
     public static double BOOST_MAX_POWER = 0.60;
     public static double TURELA_DEADZONE = 2.0;
     public static double VEL_FILTER = 0.22;
-    public static double VEL_LEAD_TIME = 0.2;
+    public static double VEL_LEAD_TIME = 0.3;
     public static double LL_LATENCY = 0.02;
     public static double LL_KI = 0.03;
     public static double LL_MAX_INTEGRAL = 15.0;
-    public static double TRANS_FF_GAIN = 0.2;
+    public static double TRANS_FF_GAIN = 0.12;
     public static double MIN_DIST = 12.0;
+    public static double TURELA_OFFSET_DEG = -15.0;
     public static double DISTURBANCE_THRESHOLD = 17.0;
 
     private volatile double turelaTargetGrade = 0;
@@ -81,6 +82,7 @@ public class TelR extends OpMode {
     private volatile double smoothedTarget = 0;
     private volatile boolean trackingInitializat = false;
     private volatile boolean hybridLimelightVede = false;
+    private volatile boolean limelightConnected = false;
     private volatile double lastTx = 0;
     private volatile double xVelocity = 0;
     private volatile double yVelocity = 0;
@@ -90,7 +92,7 @@ public class TelR extends OpMode {
 
     private static double voltajeNominale = 12.68;
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false, Touch = false, trouch = false;
-    private static final double[] RECOIL_OFFSETS = {0.0, 0.010, 0.022};
+    private static final double[] RECOIL_OFFSETS = {0.0, 0.005, 0.012};
     private volatile double distantare, posU;
     private volatile long lastDistanceReadTime = 0;
     volatile int idTag = RobotPozitie.idTag;
@@ -157,8 +159,9 @@ public class TelR extends OpMode {
     private void applyVoltageCompensatedPIDF() {
         double currentVoltage = m.voltageSensor.getVoltage();
         currentVoltage = Math.max(9.0, Math.min(14.0, currentVoltage));
-        double voltageCompensation = voltajeNominale / currentVoltage;
-        double compensatedF = m.SkF * voltageCompensation;
+        double compensatedF = m.SkF * (voltajeNominale / currentVoltage);
+        double maxF = 32767.0 / Math.max(targetShooterVelocity, 800);
+        compensatedF = Math.min(compensatedF, maxF);
         PIDFCoefficients compensatedPID = new PIDFCoefficients(m.SkP, m.SkI, m.SkD, compensatedF);
         m.shooter.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
         m.shooter2.setPIDFCoefficients(DcMotorEx.RunMode.RUN_USING_ENCODER, compensatedPID);
@@ -196,7 +199,7 @@ public class TelR extends OpMode {
         pinpoint.recalibrateIMU();
         ElapsedTime calibrationTimer = new ElapsedTime();
         while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
-                && calibrationTimer.milliseconds() < 2000) {
+            && calibrationTimer.milliseconds() < 2000) {
         }
         imuReady = pinpoint.getDeviceStatus() == GoBildaPinpointDriver.DeviceStatus.READY;
 
@@ -360,7 +363,7 @@ public class TelR extends OpMode {
         });
         Turela = new Thread(() -> {
             while (!stop) {
-                try { Thread.sleep(10); } catch (InterruptedException e) { break; }
+                try { Thread.sleep(5); } catch (InterruptedException e) { break; }
 
                 follower.update();
                 Pose currentPose = follower.getPose();
@@ -494,6 +497,7 @@ public class TelR extends OpMode {
             }
         });
         Shooter = new Thread(new Runnable() {
+            long lastPIDFRefresh = 0;
             @Override
             public void run() {
                 while (!stop) {
@@ -504,6 +508,14 @@ public class TelR extends OpMode {
                     }
                     synchronized (blocat) {
                         int loculete = getLoculete();
+
+                        if (!trageShooting && loculete > 0) {
+                            long now = System.currentTimeMillis();
+                            if (now - lastPIDFRefresh > 500) {
+                                applyVoltageCompensatedPIDF();
+                                lastPIDFRefresh = now;
+                            }
+                        }
 
                         if (!trageShooting) {
                             if (loculete == 3) {
@@ -755,8 +767,10 @@ public class TelR extends OpMode {
         lastPoseX = pose.getX();
         lastPoseY = pose.getY();
 
-        double predictedX = pose.getX() + xVelocity * VEL_LEAD_TIME;
-        double predictedY = pose.getY() + yVelocity * VEL_LEAD_TIME;
+        double spd = Math.hypot(xVelocity, yVelocity);
+        double leadScale = Math.min(1.0, spd / 8.0);
+        double predictedX = pose.getX() + xVelocity * VEL_LEAD_TIME * leadScale;
+        double predictedY = pose.getY() + yVelocity * VEL_LEAD_TIME * leadScale;
         double dx = TargetX - predictedX;
         double dy = TargetY - predictedY;
         double distToTarget = Math.hypot(dx, dy);
@@ -769,34 +783,42 @@ public class TelR extends OpMode {
         double bearingRate = tangentialVel / Math.max(distToTarget, MIN_DIST);
         double translationalFF = Math.toDegrees(bearingRate) * SCALE_FACTOR * TRANS_FF_GAIN;
 
-        LLResult result = limelight.getLatestResult();
         hybridLimelightVede = false;
-        if (result != null && result.isValid()) {
-            List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
-            if (fiducials != null && !fiducials.isEmpty()) {
-                double tx = result.getTx();
-                lastTx = tx;
-                hybridLimelightVede = true;
-                double currentAngle = turelaD.getCurrentAngle();
-                double angleAtCapture = currentAngle - Math.toDegrees(filteredHeadingRate) * LL_LATENCY * SCALE_FACTOR;
-                double trueTarget = angleAtCapture - tx * SCALE_FACTOR;
-                double offsetError = trueTarget - odomAngle;
-                llOffset += ALPHA * (offsetError - llOffset);
-                double rawOutput = SERVO_KP * (odomAngle + llOffset - currentAngle);
-                if (Math.abs(rawOutput) < SERVO_MAX_POWER) {
-                    llIntegral += offsetError * dt;
-                    llIntegral = clamp(llIntegral, -LL_MAX_INTEGRAL, LL_MAX_INTEGRAL);
+        limelightConnected = limelight != null && limelight.isConnected();
+        if (limelightConnected) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                List<LLResultTypes.FiducialResult> fiducials = result.getFiducialResults();
+                if (fiducials != null && !fiducials.isEmpty()) {
+                    double tx = result.getTx();
+                    lastTx = tx;
+                    hybridLimelightVede = true;
+                    double currentAngle = turelaD.getCurrentAngle();
+                    double angleAtCapture = currentAngle - Math.toDegrees(filteredHeadingRate) * LL_LATENCY * SCALE_FACTOR;
+                    double trueTarget = angleAtCapture - tx * SCALE_FACTOR;
+                    double offsetError = trueTarget - odomAngle;
+                    llOffset += ALPHA * (offsetError - llOffset);
+                    double rawOutput = SERVO_KP * (odomAngle + llOffset - currentAngle);
+                    if (Math.abs(rawOutput) < SERVO_MAX_POWER) {
+                        llIntegral += offsetError * dt;
+                        llIntegral = clamp(llIntegral, -LL_MAX_INTEGRAL, LL_MAX_INTEGRAL);
+                    }
+                    llOffset = clamp(llOffset, -MAX_OFFSET, MAX_OFFSET);
                 }
-                llOffset = clamp(llOffset, -MAX_OFFSET, MAX_OFFSET);
             }
-        }
-        if (!hybridLimelightVede) {
-            llOffset *= DECAY;
-            llIntegral *= 0.95;
+            if (!hybridLimelightVede) {
+                llOffset *= DECAY;
+                llIntegral *= 0.95;
+            }
+        } else {
+            llOffset = 0;
+            llIntegral = 0;
         }
 
+        double speed = Math.hypot(xVelocity, yVelocity);
+        double ffScale = Math.min(1.0, speed / 8.0);
         double targetAngle = odomAngle + llOffset + llIntegral * LL_KI;
-        targetAngle += filteredHeadingRate * GAIN_DEG + translationalFF;
+        targetAngle += (filteredHeadingRate * GAIN_DEG + translationalFF) * ffScale;
         targetAngle = clamp(targetAngle, LIMITA_STANGA_GRADE, LIMITA_DREAPTA_GRADE);
 
         double currentAngle = turelaD.getCurrentAngle();
@@ -804,6 +826,7 @@ public class TelR extends OpMode {
         double adaptiveAlpha;
         if (preError > DISTURBANCE_THRESHOLD) adaptiveAlpha = 0.95;
         else if (preError > 5.0) adaptiveAlpha = 0.85;
+        else if (speed < 5.0) adaptiveAlpha = 0.40;
         else adaptiveAlpha = T_ALPHA;
 
         if (!trackingInitializat) {
@@ -840,6 +863,14 @@ public class TelR extends OpMode {
             power = Math.signum(power) * SERVO_MIN_POWER;
         }
         power = clamp(power, -effectiveMaxPower, effectiveMaxPower);
+        double marginD = LIMITA_DREAPTA_GRADE - currentAngle;
+        double marginS = currentAngle - LIMITA_STANGA_GRADE;
+        if (marginD < 15) {
+            if (power > 0) power = -SERVO_MIN_POWER * ((15 - marginD) / 15.0);
+        }
+        if (marginS < 15) {
+            if (power < 0) power = SERVO_MIN_POWER * ((15 - marginS) / 15.0);
+        }
         turelaD.setPosition(0.5 - power);
         turelaS.setPosition(0.5 - power);
     }
@@ -868,8 +899,9 @@ public class TelR extends OpMode {
     }
 
     private double normalizeAngle(double angle) {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle < -Math.PI) angle += 2 * Math.PI;
+        angle = angle % (2 * Math.PI);
+        if (angle > Math.PI) angle -= 2 * Math.PI;
+        if (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
     }
 
@@ -922,7 +954,7 @@ public class TelR extends OpMode {
             telemetry.addData("Slot " + (i + 1), status);
         }
         telemetry.addLine("");
-        telemetry.addLine("=== TURELA CR ===");
+        telemetry.addLine(" TURELA CR ");
         telemetry.addData("Unghi target", "%.1f°", turelaTargetGrade);
         telemetry.addData("Encoder D", "%.1f° (%.3fV)", turelaD.getCurrentAngle(), turelaD.getEncoderVoltage());
         telemetry.addData("Encoder S", "%.3fV", turelaS.getEncoderVoltage());
@@ -937,7 +969,7 @@ public class TelR extends OpMode {
         telemetry.addData("distanta", distantare);
         telemetry.addData("targetVelocity", targetShooterVelocity);
         telemetry.addLine("");
-        telemetry.addData("Tracking", tracking ? (hybridLimelightVede ? "ODOM+LL" : "ODOM") : "OFF");
+        telemetry.addData("Tracking", tracking ? (hybridLimelightVede ? "odo + ll" : (limelightConnected ? "odo" : "odo - pula limelight)")) : "OFF");
         telemetry.addData("tx", "%.2f", lastTx);
         telemetry.addData("LL offset", "%.2f", llOffset);
         telemetry.addData("Manual (trouch)", trouch ? "ON" : "OFF");
@@ -945,6 +977,7 @@ public class TelR extends OpMode {
         telemetry.addData("Heading (deg)", "%.2f", Math.toDegrees(follower.getPose().getHeading()));
         telemetry.addData("y", currentY);
         telemetry.addData("TargetY", TargetY);
+        telemetry.addData("Amperaj", m.intake.getCurrent(CurrentUnit.AMPS));
         telemetry.update();
     }
 

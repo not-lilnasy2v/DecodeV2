@@ -7,6 +7,7 @@ import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -15,6 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import java.util.List;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Pozitii;
 import org.firstinspires.ftc.teamcode.RobotPozitie;
@@ -22,62 +24,47 @@ import org.firstinspires.ftc.teamcode.pop;
 import org.firstinspires.ftc.teamcode.sistemeAuto;
 
 @Autonomous(name = "FirstAutoV2")
+@Disabled
 public class FirstAutoV2 extends OpMode {
-
-    // =====================================================================
-    // SHOOTER — reglate o singura data, nu mai trebuie atinse
-    // =====================================================================
-    private static final double VELOCITY_TARGET    = 1550;
+    private static final double VELOCITY_TARGET    = 1600;
     private static final double VELOCITY_TOLERANCE = 100;    // +/-100 ticks/s
     private static final double SERVO_MIN_TIME     = 0.18;   // min timp servo travel (s)
     private static final double SHOT_TIMEOUT_FIRST = 0.40;   // timeout primul tir (s)
     private static final double SHOT_TIMEOUT_NEXT  = 0.30;   // timeout tiruri urmatoare (s)
     private static final double TURRET_AIM_TOL     = 5.0;    // eroare turela maxima (grade)
 
-    // =====================================================================
-    // TIMEOUTS — reglate o singura data
-    // =====================================================================
     private static final double PATH_TIMEOUT         = 5.0;  // timeout path normal (s)
     private static final double COLLECT_PATH_TIMEOUT = 6.0;  // timeout path colectare (s)
     private static final double SHOOT_CYCLE_TIMEOUT  = 3.0;  // timeout ciclu tragere complet (s)
-    private static final double COLLECT_WAIT_L2      = 0.3;  // asteptare extra la L2 (s)
-    private static final double COLLECT_WAIT_L1      = 0.5;  // asteptare extra la L1 (s)
-    private static final double COLLECT_WAIT_GATE    = 1.5;  // asteptare la gate (s)
+    private static final double COLLECT_WAIT_L2      = 1.5;  // asteptare extra la L2 (s) — ca in FirstAuto
+    private static final double COLLECT_WAIT_L1      = 0.9;  // asteptare extra la L1 (s) — ca in FirstAuto
+    private static final double COLLECT_WAIT_GATE    = 2.5;  // asteptare la gate (s) — ca in FirstAuto
+    private static final double JAM_CURRENT          = 6.5;  // amperaj intake = blocat (A)
 
-    // =====================================================================
-    // TIME BUDGET — sari cicluri daca nu mai e timp
-    // =====================================================================
     private static final double SKIP_L1_AFTER    = 19.0;     // sari L1+Gate#2 daca elapsed > 19s
     private static final double SKIP_GATE2_AFTER = 23.0;     // sari Gate#2 daca elapsed > 23s
-    private static final double EMERGENCY_STOP   = 29.5;     // opreste tot la 29.5s
+    private static final double EMERGENCY_STOP   = 30;     // opreste tot la 29.5s
 
-    // =====================================================================
-    // TRAJECTORIES — SINGURELE valori de reglat pe teren!
-    // =====================================================================
-    private final Pose startPose        = new Pose(31.9423076923077, 138.67307692307696, Math.toRadians(180));
-    private final Pose tragere1         = new Pose(59.36913357400721, 87.05873368508746, Math.toRadians(180));
-    private final Pose aduna1           = new Pose(59.3076923076923, 100.5785892807554, Math.toRadians(180));
-    private final Pose aluat1           = new Pose(21.55244755244755, 89.05804195804195, Math.toRadians(180));
-    private final Pose tras1            = new Pose(58.72027972027973, 87.74825174825179, Math.toRadians(180));
-    private final Pose aduna2           = new Pose(51.53846153846153, 58.84615384615384, Math.toRadians(180));
-    private final Pose aluat2           = new Pose(19.67307692307692, 63.65384615384616, Math.toRadians(180));
-    private final Pose tras2            = new Pose(59.36913357400721, 100.5785892807554, Math.toRadians(180));
-    private final Pose returnToBase     = new Pose(28.790209790209786, 93.66433566433567, Math.toRadians(180));
-    private final Pose deschideCombinat = new Pose(5.307692307692307, 62.07692307692307, Math.toRadians(135));
-    private final Pose lansareGate      = new Pose(59.36913357400721, 87.5785892807554, Math.toRadians(180));
-    private final Pose preGate          = new Pose(10.692307692307686, 75.44230769230768, Math.toRadians(90));
-    private final Pose midGate          = new Pose(44, 85, Math.toRadians(135));
+    private final Pose startPose        = new Pose(31.9423076923077, 137.67307692307696, Math.toRadians(180));
+    private final Pose tragere1 = new Pose(60.72027972027973, 100.74825174825179, Math.toRadians(180));
+    private final Pose aduna1 = new Pose(59.3076923076923, 100.5785892807554, Math.toRadians(180));
+    private final Pose aluat1 = new Pose(21.55244755244755, 89.05804195804195, Math.toRadians(180));
+    private final Pose tras1 = new Pose(58.72027972027973, 100.74825174825179, Math.toRadians(180));
+    private final Pose aduna2 = new Pose(51.53846153846153, 58.84615384615384, Math.toRadians(180));
+    private final Pose aluat2 = new Pose(13.67307692307692, 63.65384615384616, Math.toRadians(180));
+    private final Pose tras2 = new Pose(60.72027972027973, 100.74825174825179, Math.toRadians(180));
+    private final Pose returnToBase  = new Pose(28.790209790209786, 93.66433566433567, Math.toRadians(180));
+    private final Pose deschideCombinat = new Pose(5.307692307692307, 59.07692307692307, Math.toRadians(135));
+    private final Pose lansareGate = new Pose(60.69584837545127, 95.60351291307968,Math.toRadians(180));
+    private final Pose preGate  = new Pose(10.692307692307686, 68.44230769230768, Math.toRadians(90));
+    private final Pose CPpreGate = new Pose(66.55769230769232, 64.12499999999999);
+    private final Pose midGate          = new Pose(44, 72, Math.toRadians(135));
+    private final Pose gateBackoff      = new Pose(
+            deschideCombinat.getX() + 2, deschideCombinat.getY() + 2, deschideCombinat.getHeading());
 
-    // =====================================================================
-    // SHOOTING ORDER + TRACKING TARGET
-    // =====================================================================
     private static final double[] SHOOT_POS = {Pozitii.aruncare1, Pozitii.aruncare3, Pozitii.aruncare2};
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 144;
-
-    // =====================================================================
-    // INTERNAL STATE
-    // =====================================================================
     sistemeAuto n = new sistemeAuto();
     public Follower follower;
     private List<LynxModule> hubs;
@@ -97,10 +84,8 @@ public class FirstAutoV2 extends OpMode {
     private PathChain collectare1, trasUnu, DucePreGate2, returnarea;
     private Thread Intake;
     private Thread TrackingT;
-
-    // =====================================================================
-    // SLOT MANAGEMENT — thread-safe
-    // =====================================================================
+    private Timer bumpTimer = new Timer();
+    private boolean bumpingBack = false;
     private int getLoculete() {
         synchronized (slotLock) {
             int count = 0;
@@ -126,10 +111,6 @@ public class FirstAutoV2 extends OpMode {
             slotOcupat[2] = true;
         }
     }
-
-    // =====================================================================
-    // PATH BUILDING
-    // =====================================================================
     public void buildPaths() {
         scorePreload = follower.pathBuilder()
                 .addPath(new BezierLine(startPose, tragere1))
@@ -141,6 +122,8 @@ public class FirstAutoV2 extends OpMode {
         collectare2 = follower.pathBuilder()
                 .addPath(new BezierCurve(tragere1, aduna2, aluat2))
                 .setLinearHeadingInterpolation(tragere1.getHeading(), aluat2.getHeading())
+                .setGlobalDeceleration(4.0)
+                .setBrakingStart(2.0)
                 .build();
 
         trasDoi = follower.pathBuilder()
@@ -155,7 +138,7 @@ public class FirstAutoV2 extends OpMode {
                 .setLinearHeadingInterpolation(tras2.getHeading(), midGate.getHeading())
                 .addPath(new BezierLine(midGate, preGate))
                 .setLinearHeadingInterpolation(midGate.getHeading(), preGate.getHeading())
-                .addPath(new BezierCurve(preGate, deschideCombinat))
+                .addPath(new BezierLine(preGate, deschideCombinat))
                 .setLinearHeadingInterpolation(preGate.getHeading(), deschideCombinat.getHeading())
                 .setGlobalDeceleration(4.0)
                 .setBrakingStart(2.0)
@@ -185,7 +168,7 @@ public class FirstAutoV2 extends OpMode {
                 .setLinearHeadingInterpolation(tras1.getHeading(), midGate.getHeading())
                 .addPath(new BezierLine(midGate, preGate))
                 .setLinearHeadingInterpolation(midGate.getHeading(), preGate.getHeading())
-                .addPath(new BezierCurve(preGate, deschideCombinat))
+                .addPath(new BezierLine(preGate, deschideCombinat))
                 .setLinearHeadingInterpolation(preGate.getHeading(), deschideCombinat.getHeading())
                 .setGlobalDeceleration(4.0)
                 .setBrakingStart(2.0)
@@ -197,9 +180,6 @@ public class FirstAutoV2 extends OpMode {
                 .build();
     }
 
-    // =====================================================================
-    // SHOOTER HELPERS
-    // =====================================================================
     private void pregatireShooter() {
         n.applyVoltageCompensatedPIDF();
         n.shooter.setVelocity(VELOCITY_TARGET);
@@ -232,6 +212,10 @@ public class FirstAutoV2 extends OpMode {
 
     // Park din orice pozitie curenta
     private void parkFromCurrentPose() {
+        if (TrackingT != null) TrackingT.interrupt();
+        n.turelaD.setPosition(0.5);
+        n.turelaS.setPosition(0.5);
+        intakePornit = false;
         Pose cur = follower.getPose();
         PathChain park = follower.pathBuilder()
                 .addPath(new BezierLine(cur, returnToBase))
@@ -240,11 +224,6 @@ public class FirstAutoV2 extends OpMode {
         follower.followPath(park);
     }
 
-    // =====================================================================
-    // VELOCITY-GATED SHOOTING
-    // Trage MEREU 3 sloturi. Asteapta velocity + turela OK, cu timeout backup.
-    // Shooterele NU se opresc dupa — raman spinning.
-    // =====================================================================
     private void TragereLaPupitru() {
         switch (ShootingStare) {
             case 0:
@@ -375,12 +354,10 @@ public class FirstAutoV2 extends OpMode {
 
     // =====================================================================
     // STATE MACHINE
-    // Flow: Preload(3) -> L2(3) -> Gate#1(3) -> L1(3) -> Gate#2(3) -> Park
-    // Total maxim: 15 artefacte
+    // Flow: Preload(3) -> L2(3) -> Gate(3) -> Park
+    // Total maxim: 9 artefacte
     // States: 0-2 Preload, 3-5 CollectL2, 6-8 ShootL2,
-    //         9-11 Gate#1, 12-13 ShootGate#1,
-    //         14-16 CollectL1, 17-19 ShootL1,
-    //         20-22 Gate#2, 23-24 ShootGate#2,
+    //         9-11 Gate, 12-13 ShootGate,
     //         25-26 Park, 28 EmergencyPark
     // =====================================================================
     public void autonomousPathUpdate() {
@@ -435,12 +412,20 @@ public class FirstAutoV2 extends OpMode {
                 break;
 
             // ========== SHOOT LINE 2 ==========
-            case 6:
+            case 6: {
                 intakePornit = false;
                 pregatireShooter();
-                follower.followPath(trasDoi);
+                Pose cur6 = follower.getPose();
+                PathChain toShoot2 = follower.pathBuilder()
+                        .addPath(new BezierLine(cur6, tras2))
+                        .setLinearHeadingInterpolation(cur6.getHeading(), tras2.getHeading())
+                        .setGlobalDeceleration(5.0)
+                        .setBrakingStart(2.5)
+                        .build();
+                follower.followPath(toShoot2);
                 setPathState(7);
                 break;
+            }
             case 7:
                 if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
                     follower.holdPoint(tras2);
@@ -468,13 +453,30 @@ public class FirstAutoV2 extends OpMode {
                 break;
             case 10:
                 if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
-                    follower.holdPoint(deschideCombinat);
                     actionTimer.resetTimer();
+                    bumpTimer.resetTimer();
+                    bumpingBack = true;
+                    follower.holdPoint(gateBackoff);
                     setPathState(11);
                 }
                 break;
             case 11:
+                if (bumpingBack) {
+                    if (bumpTimer.getElapsedTimeSeconds() >= 0.5) {
+                        bumpingBack = false;
+                        follower.holdPoint(deschideCombinat);
+                        bumpTimer.resetTimer();
+                    }
+                } else {
+                    double amps11 = n.intake.getCurrent(CurrentUnit.AMPS);
+                    if (bumpTimer.getElapsedTimeSeconds() >= 0.7 || amps11 > JAM_CURRENT) {
+                        bumpingBack = true;
+                        follower.holdPoint(gateBackoff);
+                        bumpTimer.resetTimer();
+                    }
+                }
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_GATE) {
+                    bumpingBack = false;
                     intakePornit = false;
                     pregatireShooter();
                     follower.followPath(Trage_Gata);
@@ -496,7 +498,7 @@ public class FirstAutoV2 extends OpMode {
                 TragereLaPupitru();
                 if (!TragereInProgres || pathTimer.getElapsedTimeSeconds() >= SHOOT_CYCLE_TIMEOUT) {
                     if (TragereInProgres) finishShootingCycle();
-                    setPathState(14);
+                    setPathState(25);
                 }
                 break;
 
@@ -569,13 +571,30 @@ public class FirstAutoV2 extends OpMode {
                 break;
             case 21:
                 if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= COLLECT_PATH_TIMEOUT) {
-                    follower.holdPoint(deschideCombinat);
                     actionTimer.resetTimer();
+                    bumpTimer.resetTimer();
+                    bumpingBack = true;
+                    follower.holdPoint(gateBackoff);
                     setPathState(22);
                 }
                 break;
             case 22:
+                if (bumpingBack) {
+                    if (bumpTimer.getElapsedTimeSeconds() >= 0.5) {
+                        bumpingBack = false;
+                        follower.holdPoint(deschideCombinat);
+                        bumpTimer.resetTimer();
+                    }
+                } else {
+                    double amps22 = n.intake.getCurrent(CurrentUnit.AMPS);
+                    if (bumpTimer.getElapsedTimeSeconds() >= 0.7 || amps22 > JAM_CURRENT) {
+                        bumpingBack = true;
+                        follower.holdPoint(gateBackoff);
+                        bumpTimer.resetTimer();
+                    }
+                }
                 if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= COLLECT_WAIT_GATE) {
+                    bumpingBack = false;
                     intakePornit = false;
                     pregatireShooter();
                     follower.followPath(Trage_Gata);
@@ -605,10 +624,16 @@ public class FirstAutoV2 extends OpMode {
             case 25:
                 n.shooter.setVelocity(0);
                 n.shooter2.setVelocity(0);
+                intakePornit = false;
+                if (TrackingT != null) TrackingT.interrupt();
+                n.turelaD.setPosition(0.5);
+                n.turelaS.setPosition(0.5);
                 follower.followPath(returnarea, false);
                 setPathState(26);
                 break;
             case 26:
+                n.turelaD.setPosition(0.5);
+                n.turelaS.setPosition(0.5);
                 if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
                     setPathState(-1);
                 }
@@ -619,6 +644,9 @@ public class FirstAutoV2 extends OpMode {
                 n.shooter.setVelocity(0);
                 n.shooter2.setVelocity(0);
                 intakePornit = false;
+                if (TrackingT != null) TrackingT.interrupt();
+                n.turelaD.setPosition(0.5);
+                n.turelaS.setPosition(0.5);
                 if (!follower.isBusy() || pathTimer.getElapsedTimeSeconds() >= PATH_TIMEOUT) {
                     setPathState(-1);
                 }

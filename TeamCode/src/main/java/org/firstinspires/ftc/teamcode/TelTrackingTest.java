@@ -26,7 +26,13 @@ import java.util.List;
  *   adaptive target smoothing. Zero dependenta de camera.
  *
  * MODE 2 (LIMELIGHT): Limelight-only cu EMA-filtered tx, latency compensation,
- *   PID cu derivative-on-measurement si anti-windup, tx velocity prediction,
+ *   PID cu derivative-on-measurement si anti v4
+ *
+ *
+ *
+ *
+ *
+ *   wwqqw   -windup, tx velocity prediction,
  *   dynamic gains, graceful target-loss handling.
  *
  * MODE 3 (HYBRID): Odometry base + Limelight offset correction cu EMA accumulator,
@@ -39,11 +45,11 @@ import java.util.List;
 @Configurable
 public class TelTrackingTest extends OpMode {
 
-    private static final double LIMITA_STANGA = -219.9;
-    private static final double LIMITA_DREAPTA = 218.3;
-    private static final double REFERINTA_VOLTAJ = 0.3730;
+    private static final double LIMITA_STANGA = -221.5;
+    private static final double LIMITA_DREAPTA= 191.1;
+    private static final double REFERINTA_VOLTAJ = 0.5120;
+    private static final double SCALE_FACTOR = 2.292;
     private static final double TURELA_DEADZONE = 2.0;
-    private static double SCALE_FACTOR = 2.435;
     private static double TURELA_OFFSET_DEG = -15.0;
     private static double TargetX = 0;
     private static double TargetY = 144;
@@ -357,14 +363,14 @@ public class TelTrackingTest extends OpMode {
             return clamp(llLastTarget, LIMITA_STANGA, LIMITA_DREAPTA);
         }
 
-        // Latency compensation: where was the turret when the frame was captured?
-        double angleAtCapture = currentAngle - Math.toDegrees(hrFast) * LL_LATENCY * SCALE_FACTOR;
+        // Latency compensation: turret moved since frame was captured
+        double latencyAdj = Math.toDegrees(hrFast) * LL_LATENCY * SCALE_FACTOR;
 
         // TX with velocity prediction: predict where the target will be
         double predictedTx = filteredTx + txVelocity * TX_VEL_LEAD;
 
-        // Error in turret-degrees
-        double error = -predictedTx * SCALE_FACTOR;
+        // Error in turret-degrees (+ latency adjustment for turret movement since capture)
+        double error = -predictedTx * SCALE_FACTOR + latencyAdj;
 
         // Dynamic P gain: more aggressive when far from target
         double absTx = Math.abs(filteredTx);
