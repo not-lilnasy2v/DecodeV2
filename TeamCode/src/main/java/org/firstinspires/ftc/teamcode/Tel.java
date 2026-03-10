@@ -43,7 +43,7 @@ public class Tel extends OpMode {
     sistemeTeleOp m = new sistemeTeleOp();
     private static volatile double TargetX = 0;
     private static volatile double TargetY = 127;
-    private static double IDLE_RATIO = 0.67;
+    private static double IDLE_RATIO = 0.67;//0.67
     private volatile double currentY, currentX, currentH;
 
     private ServoImplExEx turelaD;
@@ -93,13 +93,13 @@ public class Tel extends OpMode {
 
     private static double voltajeNominale = 12.68;
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false, Touch = false, trouch = false;
-    private static final double[] RECOIL_OFFSETS = {0.0, 0.006, 0.014};
+    private static final double[] RECOIL_OFFSETS = {0.035, 0.045, 0.015};//0.00 0.06,0.014
     private volatile double distantare, posU;
     private volatile long lastDistanceReadTime = 0;
     volatile int idTag = RobotPozitie.idTag;
     private volatile boolean[] slotOcupat = new boolean[3];
     private volatile int[] slotColor = new int[3];
-
+    private static final double INTAKE_JAM_CURRENT = 1.1;
     private int getLoculete() {
         int count = 0;
         for (boolean occupied : slotOcupat) {
@@ -421,6 +421,13 @@ public class Tel extends OpMode {
                         bPressed = gamepad1.b;
                     }
 
+                    if (getLoculete() == 3 && m.intake.getCurrent(CurrentUnit.AMPS) > INTAKE_JAM_CURRENT) {
+                        m.intake.setPower(0.5);
+                        m.kdf(500);
+                        m.intake.setPower(0);
+                        continue;
+                    }
+
                     if (shouldIntake && !trageShooting) {
                         long now = System.currentTimeMillis();
                         if (now - lastDistanceReadTime >= 50) {
@@ -623,9 +630,9 @@ public class Tel extends OpMode {
                     waitForShooterReady();
 
                     bascula.setPosition(Pozitii.lansare);
-                    m.kdf(120);
+                    m.kdf(150);//120
                     bascula.setPosition(Pozitii.sede);
-                    m.kdf(30);
+                    m.kdf(50);//30
 
                     slotOcupat[slotShoot] = false;
                     slotColor[slotShoot] = -1;
@@ -678,7 +685,7 @@ public class Tel extends OpMode {
                             m.kdf(m.sortareWaitMs(lastPos, target));
                         }
                         waitForShooterReady();
-                        m.kdf(30);
+                        m.kdf(50);
 
                         slotOcupat[s] = false;
                         slotColor[s] = -1;

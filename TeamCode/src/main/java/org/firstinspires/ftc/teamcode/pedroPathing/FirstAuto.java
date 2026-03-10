@@ -30,7 +30,7 @@ public class FirstAuto extends OpMode {
 
     private static final double TARGET_X = 0;
     private static final double TARGET_Y = 144;
-    
+
 
     private final Pose startPose = new Pose(24.503496503496507, 128.8951048951049, Math.toRadians(142));
     private final Pose tragere1 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));

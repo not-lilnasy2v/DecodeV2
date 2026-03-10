@@ -77,17 +77,17 @@ public class RaresVreaCuculet extends OpMode {
 
     private double EcuatieVelocity(double x) {
         double result = -0.00000516094 * Math.pow(x, 3)
-             + 0.00138528 * Math.pow(x, 2)
-             - 0.115998 * x
-             + 3.332;
+                + 0.00138528 * Math.pow(x, 2)
+                - 0.115998 * x
+                + 3.332;
         return result * 1000;
     }
 
     private double EcuatieHoodAngle(double x) {
         return 0.00155259 * Math.pow(x, 4)
-             - 0.417429 * Math.pow(x, 3)
-             + 35.2741 * Math.pow(x, 2)
-             - 926.56355 * x;
+                - 0.417429 * Math.pow(x, 3)
+                + 35.2741 * Math.pow(x, 2)
+                - 926.56355 * x;
     }
 
     private double CalculeVelocitate(double distanceInch) {

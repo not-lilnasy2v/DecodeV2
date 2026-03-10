@@ -39,8 +39,7 @@ public class sortareShootertester extends LinearOpMode {
 //            if (gamepad1.dpad_down) {
 //                aruncare.setPosition(Pozitii.coborare);
 //            }
-            telemetry.addData("pos", pos);
-            telemetry.update();
-        }
+        telemetry.addData("pos", pos);
+        telemetry.update();
     }
-
+}

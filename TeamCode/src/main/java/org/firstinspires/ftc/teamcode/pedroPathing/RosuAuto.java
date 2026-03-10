@@ -35,7 +35,7 @@ public class RosuAuto extends OpMode {
     private final Pose aduna2 = new Pose(72.35664335664335, 55.374125874125866, Math.toRadians(0));
     private final Pose aluat2 = new Pose(125.8479143234388,57.40247933884299, Math.toRadians(0));
     private final Pose tras2 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
-//    private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
+    //    private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
 //    private final Pose aluat3 = new Pose(125.1163333170326, 37.5416401780038 , Math.toRadians(0));
     private final Pose tras3 = new Pose(83.16783216783216,96.5874125874126,Math.toRadians(0));
     private final Pose returnToBase = new Pose(118.42657342657343,95.67832167832168,Math.toRadians(0));

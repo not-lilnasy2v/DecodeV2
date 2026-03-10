@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.NouHard.ServoImplExEx;
 public class sistemeTeleOp {
     public DcMotorEx shooter, intake, shooter2,scula;
     public ServoImplExEx bascula, sortare, unghiD, turelaS, turelaD;
-//    public ServoImplExEx Saruncare;
+    //    public ServoImplExEx Saruncare;
     public DistanceSensor distanta;
     public VoltageSensor voltageSensor;
     public NormalizedColorSensor colors;
@@ -103,7 +103,7 @@ public class sistemeTeleOp {
     public void kdf(long t) {
         try { Thread.sleep(t); } catch (InterruptedException ignored) {}
     }
-    
+
     private static final double SORT_MS_PER_UNIT = 400;
     private static final long SORT_MARGIN_MS = 25;
 
