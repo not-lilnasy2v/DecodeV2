@@ -126,6 +126,8 @@ public class sistemeAuto {
             hybridLastHeading = pose.getHeading();
             lastPoseX = pose.getX();
             lastPoseY = pose.getY();
+            prevMeasurement = turelaD.getCurrentAngle();
+            prevFilteredDeriv = 0;
             return;
         }
 
@@ -205,7 +207,7 @@ public class sistemeAuto {
         double adaptiveAlpha;
         if (preError > DISTURBANCE_THRESHOLD) adaptiveAlpha = 0.95;
         else if (preError > 5.0) adaptiveAlpha = 0.85;
-        else if (speed < 5.0) adaptiveAlpha = 0.25;
+        else if (speed < 5.0) adaptiveAlpha = 0.50;
         else adaptiveAlpha = T_ALPHA;
 
         if (!trackingInitialized) {
@@ -222,7 +224,7 @@ public class sistemeAuto {
         prevMeasurement = currentAngle;
 
         double absError = Math.abs(posError);
-        if (absError < TURELA_DEADZONE) {
+        if (absError < TURELA_DEADZONE && Math.abs(posDerivative) < 50.0) {
             turelaD.setPosition(0.5);
             turelaS.setPosition(0.5);
             return;
@@ -233,15 +235,24 @@ public class sistemeAuto {
         else if (absError > 10.0) effectiveMaxPower = POS_MAX_POWER + 0.05;
         else effectiveMaxPower = POS_MAX_POWER;
 
-        double power = POS_KP * posError + POS_KD * posDerivative;
+        double filteredDeriv = DERIV_FILTER * prevFilteredDeriv + (1.0 - DERIV_FILTER) * posDerivative;
+        prevFilteredDeriv = filteredDeriv;
+        double power = POS_KP * posError + POS_KD * filteredDeriv;
         if (absError < TURELA_DEADZONE * 2) {
             double ramp = (absError - TURELA_DEADZONE) / TURELA_DEADZONE;
             power *= Math.max(0, ramp);
-        }
-        if (Math.abs(power) < POS_MIN_POWER && absError > TURELA_DEADZONE) {
-            power = Math.signum(power) * POS_MIN_POWER;
+        } else if (Math.abs(power) < POS_MIN_POWER && absError > TURELA_DEADZONE) {
+            power = Math.signum(posError) * POS_MIN_POWER;
         }
         power = clamp(power, -effectiveMaxPower, effectiveMaxPower);
+        double marginD = LIMITA_DREAPTA_GRADE - currentAngle;
+        double marginS = currentAngle - LIMITA_STANGA_GRADE;
+        if (marginD < 15 && power > 0) {
+            power = -POS_MIN_POWER * ((15 - marginD) / 15.0);
+        }
+        if (marginS < 15 && power < 0) {
+            power = POS_MIN_POWER * ((15 - marginS) / 15.0);
+        }
         turelaD.setPosition(0.5 - power);
         turelaS.setPosition(0.5 - power);
     }
@@ -256,6 +267,8 @@ public class sistemeAuto {
             hybridLastHeading = pose.getHeading();
             lastPoseX = pose.getX();
             lastPoseY = pose.getY();
+            prevMeasurement = turelaD.getCurrentAngle();
+            prevFilteredDeriv = 0;
             return;
         }
 
@@ -335,7 +348,7 @@ public class sistemeAuto {
         double adaptiveAlpha;
         if (preError > DISTURBANCE_THRESHOLD) adaptiveAlpha = 0.95;
         else if (preError > 5.0) adaptiveAlpha = 0.85;
-        else if (speed < 5.0) adaptiveAlpha = 0.25;
+        else if (speed < 5.0) adaptiveAlpha = 0.50;
         else adaptiveAlpha = T_ALPHA;
 
         if (!trackingInitialized) {
@@ -352,7 +365,7 @@ public class sistemeAuto {
         prevMeasurement = currentAngle;
 
         double absError = Math.abs(posError);
-        if (absError < Turela_deadzone) {
+        if (absError < TURELA_DEADZONE && Math.abs(posDerivative) < 50.0) {
             turelaD.setPosition(0.5);
             turelaS.setPosition(0.5);
             return;
@@ -363,15 +376,24 @@ public class sistemeAuto {
         else if (absError > 10.0) effectiveMaxPower = POS_MAX_POWER + 0.05;
         else effectiveMaxPower = POS_MAX_POWER;
 
-        double power = POS_KP * posError + POS_KD * posDerivative;
-        if (absError < Turela_deadzone * 2) {
-            double ramp = (absError - Turela_deadzone) / Turela_deadzone;
+        double filteredDeriv = DERIV_FILTER * prevFilteredDeriv + (1.0 - DERIV_FILTER) * posDerivative;
+        prevFilteredDeriv = filteredDeriv;
+        double power = POS_KP * posError + POS_KD * filteredDeriv;
+        if (absError < TURELA_DEADZONE * 2) {
+            double ramp = (absError - TURELA_DEADZONE) / TURELA_DEADZONE;
             power *= Math.max(0, ramp);
-        }
-        if (Math.abs(power) < POS_MIN_POWER && absError > Turela_deadzone) {
-            power = Math.signum(power) * POS_MIN_POWER;
+        } else if (Math.abs(power) < POS_MIN_POWER && absError > TURELA_DEADZONE) {
+            power = Math.signum(posError) * POS_MIN_POWER;
         }
         power = clamp(power, -effectiveMaxPower, effectiveMaxPower);
+        double marginD = LIMITA_DREAPTA_GRADE - currentAngle;
+        double marginS = currentAngle - LIMITA_STANGA_GRADE;
+        if (marginD < 15 && power > 0) {
+            power = -POS_MIN_POWER * ((15 - marginD) / 15.0);
+        }
+        if (marginS < 15 && power < 0) {
+            power = POS_MIN_POWER * ((15 - marginS) / 15.0);
+        }
         turelaD.setPosition(0.5 - power);
         turelaS.setPosition(0.5 - power);
     }
@@ -486,6 +508,7 @@ public class sistemeAuto {
         smoothedTarget = 0;
         trackingInitialized = false;
         prevMeasurement = 0;
+        prevFilteredDeriv = 0;
         hybridLastTime = 0;
         hybridLastHeading = 0;
         xVelocity = 0;
@@ -528,36 +551,35 @@ public class sistemeAuto {
     private static final double LIMITA_DREAPTA_GRADE = 191.1;
     private static final double REFERINTA_VOLTAJ_D = 0.5120;
     private static final double SCALE_FACTOR = 2.292;
-    private static final double TURELA_DEADZONE = 2.0;
-    private static final double Turela_deadzone = -2.0;
-    private static final double ALPHA = 0.25;
+    private static final double TURELA_DEADZONE = 1.5;
+    private static final double ALPHA = 0.20;
     private static final double MAX_OFFSET = 35.0;
-    private static final double DECAY = 0.97;
-    private static final double H_FF_GAIN_DEG = 1.2;
-    private static final double HR_FILTER = 0.30;
+    private static final double DECAY = 0.997;
+    private static final double H_FF_GAIN_DEG = 0.8;
+    private static final double HR_FILTER = 0.25;
     private static final double VEL_FILTER = 0.22;
-    public static double VEL_LEAD_TIME = 0.5;
-
-
-            private static final double T_ALPHA = 0.45;
+    public static double VEL_LEAD_TIME = 0.15;
+    private static final double T_ALPHA = 0.55;
     private static final double LL_LATENCY = 0.02;
-    private static final double LL_KI = 0.03;
-    private static final double H_MAX_INTEGRAL = 15.0;
-    private static final double TRANS_FF_GAIN = 0.2;
+    private static final double LL_KI = 0.02;
+    private static final double H_MAX_INTEGRAL = 10.0;
+    private static final double TRANS_FF_GAIN = 0.10;
     private static final double MIN_DIST = 12.0;
     private static final double DISTURBANCE_THRESHOLD = 17.0;
     public double turelaOffsetDeg = -15.0;
-    private static final double POS_KP = 0.0025;
-    private static final double POS_KD = 0.00010;
+    private static final double POS_KP = 0.0030;
+    private static final double POS_KD = 0.0004;
     private static final double POS_MIN_POWER = 0.05;
-    private static final double POS_MAX_POWER = 0.45;
-    private static final double BOOST_MAX_POWER = 0.55;
+    private static final double POS_MAX_POWER = 0.50;
+    private static final double BOOST_MAX_POWER = 0.60;
+    private static final double DERIV_FILTER = 0.8;
 
     private long hybridLastTime = 0;
     private boolean hybridLimelightVede = false;
     private double hybridLastHeading = 0;
     private double lastPoseX = 0, lastPoseY = 0;
     private double xVelocity = 0, yVelocity = 0;
+    private double prevFilteredDeriv = 0;
 
     private double clamp(double val, double min, double max) {
         return Math.max(min, Math.min(max, val));

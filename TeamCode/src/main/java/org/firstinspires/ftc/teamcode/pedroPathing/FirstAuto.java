@@ -377,7 +377,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 5:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.8) {
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 1.5) {
                     intakePornit = false;
                     setPathState(6);
                 }
@@ -472,7 +472,7 @@ public class FirstAuto extends OpMode {
                 break;
 
             case 17:
-                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.6) {
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
                     intakePornit = false;
                     setPathState(18);
                 }

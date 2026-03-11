@@ -56,7 +56,7 @@ public class Tel extends OpMode {
 
     public static double ALPHA = 0.30;
     public static double MAX_OFFSET = 35.0;
-    public static double DECAY = 0.97;
+    public static double DECAY = 0.997;
     public static double GAIN_DEG = 1.0;
     public static double HR_FILTER = 0.30;
     public static double T_ALPHA = 0.50;
@@ -67,13 +67,15 @@ public class Tel extends OpMode {
     public static double BOOST_MAX_POWER = 0.60;
     public static double TURELA_DEADZONE = 2.0;
     public static double VEL_FILTER = 0.22;
-    public static double VEL_LEAD_TIME = 0.3;
+    public static double VEL_LEAD_TIME = 0.15;
     public static double LL_LATENCY = 0.02;
     public static double LL_KI = 0.03;
     public static double LL_MAX_INTEGRAL = 15.0;
     public static double TRANS_FF_GAIN = 0.12;
     public static double MIN_DIST = 12.0;
+    public static double TURELA_OFFSET_DEG = -25.0;
     public static double DISTURBANCE_THRESHOLD = 17.0;
+    public static double DERIV_FILTER = 0.8;
     private volatile double turelaTargetGrade = 0;
     private volatile long trackLastTime = 0;
     private volatile double lastHeading = 0;
@@ -90,6 +92,7 @@ public class Tel extends OpMode {
     private volatile double lastPoseX = 0;
     private volatile double lastPoseY = 0;
     private volatile double prevMeasurement = 0;
+    private volatile double prevFilteredDeriv = 0;
 
     private static double voltajeNominale = 12.68;
     public volatile boolean turelaTracking = false, tracking = false, Ipornit = false, IntakePornit = false, SortingPornit = false, SortingToggle = false, Touch = false, trouch = false;
@@ -758,6 +761,8 @@ public class Tel extends OpMode {
             lastHeading = pose.getHeading();
             lastPoseX = pose.getX();
             lastPoseY = pose.getY();
+            prevMeasurement = turelaD.getCurrentAngle();
+            prevFilteredDeriv = 0;
             return;
         }
 
@@ -820,13 +825,13 @@ public class Tel extends OpMode {
                 llIntegral *= 0.95;
             }
         } else {
-            llOffset = 0;
-            llIntegral = 0;
+            llOffset *= DECAY;
+            llIntegral *= 0.95;
         }
 
         double speed = Math.hypot(xVelocity, yVelocity);
         double ffScale = Math.min(1.0, speed / 8.0);
-        double targetAngle = odomAngle + llOffset + llIntegral * LL_KI;
+        double targetAngle = odomAngle + llOffset + llIntegral * LL_KI + TURELA_OFFSET_DEG;
         targetAngle += (filteredHeadingRate * GAIN_DEG + translationalFF) * ffScale;
         targetAngle = clamp(targetAngle, LIMITA_STANGA_GRADE, LIMITA_DREAPTA_GRADE);
 
@@ -863,13 +868,14 @@ public class Tel extends OpMode {
         else if (absError > 10.0) effectiveMaxPower = SERVO_MAX_POWER + 0.05;
         else effectiveMaxPower = SERVO_MAX_POWER;
 
-        double power = SERVO_KP * posError + SERVO_KD * posDerivative;
+        double filteredDeriv = DERIV_FILTER * prevFilteredDeriv + (1.0 - DERIV_FILTER) * posDerivative;
+        prevFilteredDeriv = filteredDeriv;
+        double power = SERVO_KP * posError + SERVO_KD * filteredDeriv;
         if (absError < TURELA_DEADZONE * 2) {
             double ramp = (absError - TURELA_DEADZONE) / TURELA_DEADZONE;
             power *= Math.max(0, ramp);
-        }
-        if (Math.abs(power) < SERVO_MIN_POWER && absError > TURELA_DEADZONE) {
-            power = Math.signum(power) * SERVO_MIN_POWER;
+        } else if (Math.abs(power) < SERVO_MIN_POWER && absError > TURELA_DEADZONE) {
+            power = Math.signum(posError) * SERVO_MIN_POWER;
         }
         power = clamp(power, -effectiveMaxPower, effectiveMaxPower);
         double marginD = LIMITA_DREAPTA_GRADE - currentAngle;
@@ -917,11 +923,13 @@ public class Tel extends OpMode {
         lastPoseX = 0;
         lastPoseY = 0;
         prevMeasurement = 0;
+        prevFilteredDeriv = 0;
     }
 
     private double normalizeAngle(double angle) {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle < -Math.PI) angle += 2 * Math.PI;
+        angle = angle % (2 * Math.PI);
+        if (angle > Math.PI) angle -= 2 * Math.PI;
+        if (angle < -Math.PI) angle += 2 * Math.PI;
         return angle;
     }
 
