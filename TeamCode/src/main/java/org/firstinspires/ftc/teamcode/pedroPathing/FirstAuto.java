@@ -46,7 +46,7 @@ public class FirstAuto extends OpMode {
     private final Pose aluat3 = new Pose(15.81118881118881, 52.34825174825171, Math.toRadians(180));
     private final Pose tras3 = new Pose(60.72027972027973, 95.74825174825179, Math.toRadians(180));
     private final Pose returnToBase = new Pose(28.790209790209786, 93.66433566433567, Math.toRadians(180));
-    private final Pose deschideCombinat = new Pose(16.038461538461544, 65.99993846153848, Math.toRadians(142));
+    private final Pose deschideCombinat = new Pose(16.038461538461544, 65.99993846153848, Math.toRadians(140));
     private final Pose CPdeschideCombinat = new Pose(51.84615384615386, 58.75961538461536);
     private final Pose CPdeschideCombinat2 = new Pose(40.36538461538461, 51.076923076923094);
     private final Pose lansareGate = new Pose(60.69584837545127, 95.60351291307968, Math.toRadians(180));
@@ -119,7 +119,6 @@ public class FirstAuto extends OpMode {
                 .addPath(new BezierCurve(tragere1, CPdeschideCombinat, CPdeschideCombinat2, deschideCombinat))
                 .setLinearHeadingInterpolation(tragere1.getHeading(), deschideCombinat.getHeading())
                 .setVelocityConstraint(30.0)
-                .setHeadingConstraint(2)
                 .setBrakingStart(3)
                 .build();
     }
@@ -641,7 +640,6 @@ public class FirstAuto extends OpMode {
         slotOcupat[1] = true;
         slotOcupat[2] = true;
 
-        n.turelaOffsetDeg = -15.0;
         n.resetTurelaPID();
         Intake();
         IntakeThread.start();
