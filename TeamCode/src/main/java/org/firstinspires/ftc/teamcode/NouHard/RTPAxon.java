@@ -100,7 +100,7 @@ public class RTPAxon {
         lastError = 0.0;
         maxIntegralSum = 100.0;
         pidTimer = new ElapsedTime();
-        pidTimer.reset();
+        pid Timer.reset();
 
         maxPower = 0.25;
         cliffs = 0;
