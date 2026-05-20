@@ -1,0 +1,799 @@
+package org.firstinspires.ftc.teamcode.pedroPathing;
+
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.Path;
+import com.pedropathing.paths.PathChain;
+import com.pedropathing.util.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.Pozitii;
+import org.firstinspires.ftc.teamcode.RobotPozitie;
+import org.firstinspires.ftc.teamcode.pop;
+import org.firstinspires.ftc.teamcode.sistemeAuto;
+
+@Autonomous
+public class RosuAuto extends OpMode {
+    sistemeAuto n = new sistemeAuto();
+    public Follower follower;
+    private Timer pathTimer, actionTimer, opmodeTimer;
+    private int pathState;
+    private static final double TARGET_X = 144;
+    private static final double TARGET_Y = 167;
+    private final Pose startPose = new Pose(120.35855054036871, 127.40143772311603, Math.toRadians(37));
+    private final Pose tragere1 = new Pose(84.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose aluat1 = new Pose(120.51322803071056, 87.17702577143136, Math.toRadians(0));
+    private final Pose ARatat1 = new Pose(80.55254387312878, 67.32287653839902, Math.toRadians(0));
+    private final Pose tras1 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose aduna2 = new Pose(72.35664335664335, 55.374125874125866, Math.toRadians(0));
+    private final Pose aluat2 = new Pose(125.8479143234388,57.40247933884299, Math.toRadians(0));
+    private final Pose ARatat2 = new Pose(78.26223776223776, 48.31818181818181, Math.toRadians(0));
+    private final Pose tras2 = new Pose(83.16783216783216, 96.5874125874126, Math.toRadians(0));
+    private final Pose aduna3 = new Pose(62.96273656413514, 28.151596655093154, Math.toRadians(0));
+    private final Pose aluat3 = new Pose(125.1163333170326, 37.5416401780038 , Math.toRadians(0));
+    private final Pose tras3 = new Pose(83.16783216783216,96.5874125874126,Math.toRadians(0));
+    private final Pose returnToBase = new Pose(118.42657342657343,95.67832167832168,Math.toRadians(0));
+
+
+    private Path scorePreload;
+    private PathChain collectare1, Miss1, trasUnu, collectare2, Miss2, trasDoi, collectare3, trasTrei,returnarea;
+
+    private boolean TragereInProgres = false;
+    private int ballshoot = 0;
+    private int ShootingStare = 0;
+    private boolean shooterPreparado = false;
+    private int flushSlot = 2;
+    private int flushRound = 0;
+    private long velocityCheckStart = 0;
+    private int idTag = 0;
+
+    private volatile boolean[] slotOcupat = new boolean[3];
+
+    private synchronized int getLoculete() {
+        int count = 0;
+        for (boolean occupied : slotOcupat) {
+            if (occupied) count++;
+        }
+        return count;
+    }
+
+    public void buildPaths() {
+        scorePreload = new Path(new BezierLine(startPose, tragere1));
+        scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), tragere1.getHeading());
+
+        collectare1 = follower.pathBuilder()
+                .addPath(new BezierLine(tragere1, aluat1))
+                .setLinearHeadingInterpolation(tragere1.getHeading(), aluat1.getHeading())
+                .build();
+
+        Miss1 = follower.pathBuilder()
+                .addPath(new BezierCurve(aluat1, ARatat1, aluat2))
+                .setLinearHeadingInterpolation(aluat1.getHeading(), aluat2.getHeading())
+                .build();
+
+        trasUnu = follower.pathBuilder()
+                .addPath(new BezierLine(aluat1, tras1))
+                .setLinearHeadingInterpolation(aluat1.getHeading(), tras1.getHeading())
+                .setTranslationalConstraint(1)
+                .setTimeoutConstraint(50)
+                .build();
+
+        collectare2 = follower.pathBuilder()
+                .addPath(new BezierCurve(tras1, aduna2, aluat2))
+                .setLinearHeadingInterpolation(tras1.getHeading(), aluat2.getHeading())
+                .build();
+
+        Miss2 = follower.pathBuilder()
+                .addPath(new BezierCurve(aluat2, ARatat2, aluat3))
+                .setLinearHeadingInterpolation(aluat2.getHeading(), aluat3.getHeading())
+                .build();
+
+        trasDoi = follower.pathBuilder()
+                .addPath(new BezierLine(aluat2, tras2))
+                .setLinearHeadingInterpolation(aluat2.getHeading(), tras2.getHeading())
+                .setTranslationalConstraint(1)
+                .setTimeoutConstraint(70)
+                .build();
+
+        collectare3 = follower.pathBuilder()
+                .addPath(new BezierCurve(tras2, aduna3, aluat3))
+                .setLinearHeadingInterpolation(tras2.getHeading(), aluat3.getHeading())
+                .build();
+
+        trasTrei = follower.pathBuilder()
+                .addPath(new BezierLine(aluat3, tras3))
+                .setLinearHeadingInterpolation(aluat3.getHeading(), tras3.getHeading())
+                .setTranslationalConstraint(1)
+                .setTimeoutConstraint(100)
+                .build();
+        returnarea=  follower.pathBuilder()
+                .addPath(new BezierLine(tras3,returnToBase))
+                .setLinearHeadingInterpolation(tras3.getHeading(),returnToBase.getHeading())
+                .build();
+    }
+
+    private void pregatireShooter() {
+        if (!shooterPreparado) {
+            n.applyVoltageCompensatedPIDF();
+            n.shooter.setVelocity(1550);
+            n.shooter2.setVelocity(1550);
+            n.unghiD.setPosition(pop.posUnghi);
+            shooterPreparado = true;
+        }
+    }
+
+    private int currentShootSlot = 2;
+    private static final double SHOOTER_VEL = 1550;
+    private static final double IDLE_RATIO = 0.67;
+
+    private void TragereLaPupitru() {
+        switch (ShootingStare) {
+            case 0:
+                ballshoot = 3;
+                currentShootSlot = 2;
+                idTag = n.detectIdTag();
+                n.scula.setPower(-1);
+                n.bascula.setPosition(Pozitii.lansareRapid);
+                if (!shooterPreparado) {
+                    n.applyVoltageCompensatedPIDF();
+                    n.shooter.setVelocity(SHOOTER_VEL);
+                    n.shooter2.setVelocity(SHOOTER_VEL);
+                    n.unghiD.setPosition(pop.posUnghi);
+                    actionTimer.resetTimer();
+                    ShootingStare = 1;
+                } else {
+                    ShootingStare = 3;
+                }
+                break;
+
+            case 1:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.35) {
+                    actionTimer.resetTimer();
+                    ShootingStare = 2;
+                }
+                break;
+
+            case 2:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.50) {
+                    ShootingStare = 3;
+                }
+                break;
+
+            case 3:
+                if (currentShootSlot >= 0) {
+                    ShootingStare = 4;
+                } else {
+                    flushSlot = 2;
+                    flushRound = 0;
+                    n.intake.setPower(1);
+                    ShootingStare = 11;
+                }
+                break;
+
+            case 4:
+                double target;
+                if (currentShootSlot == 0) target = Pozitii.aruncare1;
+                else if (currentShootSlot == 1) target = Pozitii.aruncare2;
+                else target = Pozitii.aruncare3;
+                n.sortare.setPosition(target);
+                actionTimer.resetTimer();
+                ShootingStare = 5;
+                break;
+
+            case 5:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.10) {
+                    velocityCheckStart = System.currentTimeMillis();
+                    ShootingStare = 6;
+                }
+                break;
+
+            case 6:
+                double v1 = Math.abs(n.shooter.getVelocity());
+                double v2 = Math.abs(n.shooter2.getVelocity());
+                double tol = SHOOTER_VEL * 0.03;
+                if ((Math.abs(v1 - SHOOTER_VEL) < tol && Math.abs(v2 - SHOOTER_VEL) < tol)
+                        || (System.currentTimeMillis() - velocityCheckStart) > 400) {
+                    ShootingStare = 7;
+                }
+                break;
+
+            case 7:
+                actionTimer.resetTimer();
+                ShootingStare = 8;
+                break;
+
+            case 8:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.07) {
+                    ShootingStare = 9;
+                }
+                break;
+
+            case 9:
+                actionTimer.resetTimer();
+                ShootingStare = 10;
+                break;
+
+            case 10:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.03) {
+                    slotOcupat[currentShootSlot] = false;
+                    currentShootSlot--;
+                    ShootingStare = 3;
+                }
+                break;
+
+            case 11:
+                double flushTarget;
+                if (flushSlot == 0) flushTarget = Pozitii.aruncare1;
+                else if (flushSlot == 1) flushTarget = Pozitii.aruncare2;
+                else flushTarget = Pozitii.aruncare3;
+                n.sortare.setPosition(flushTarget);
+                actionTimer.resetTimer();
+                ShootingStare = 12;
+                break;
+
+            case 12:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.13) {
+                    ShootingStare = 13;
+                }
+                break;
+
+            case 13:
+                actionTimer.resetTimer();
+                ShootingStare = 14;
+                break;
+
+            case 14:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.07) {
+                    ShootingStare = 15;
+                }
+                break;
+
+            case 15:
+                actionTimer.resetTimer();
+                ShootingStare = 16;
+                break;
+
+            case 16:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.03) {
+                    flushSlot--;
+                    if (flushSlot >= 0) {
+                        ShootingStare = 11;
+                    } else {
+                        actionTimer.resetTimer();
+                        ShootingStare = 17;
+                    }
+                }
+                break;
+
+            case 17:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.20) {
+                    double dist = n.cachedDistanta;
+                    if (dist < 20 && flushRound < 2) {
+                        flushRound++;
+                        flushSlot = 2;
+                        ShootingStare = 11;
+                    } else {
+                        ShootingStare = 18;
+                    }
+                }
+                break;
+
+            case 18:
+                n.bascula.setPosition(Pozitii.sede);
+                n.scula.setPower(0);
+                n.intake.setPower(0);
+                n.sortare.setPosition(Pozitii.luarea1);
+                actionTimer.resetTimer();
+                ShootingStare = 19;
+                break;
+
+            case 19:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.15) {
+                    n.shooter.setVelocity(750);
+                    n.shooter2.setVelocity(750);
+                    ShootingStare = 20;
+                }
+                break;
+
+            case 20:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                TragereInProgres = false;
+                shooterPreparado = false;
+                ShootingStare = 0;
+                break;
+        }
+    }
+
+    private volatile boolean intakePornit = false;
+    private volatile boolean stop = false;
+    private Thread IntakeThread;
+    private Thread TrackingThread;
+
+    private void Intake() {
+        IntakeThread = new Thread(new Runnable() {
+            private boolean ballBeingProcessed = false;
+            private long lastDistReadTime = 0;
+
+            @Override
+            public void run() {
+                while (!stop) {
+                    n.Nkdf(3000000);
+                    long now = System.currentTimeMillis();
+                    if (now - lastDistReadTime >= 50) {
+                        n.cachedDistanta = n.distanta.getDistance(DistanceUnit.CM);
+                        lastDistReadTime = now;
+                    }
+                    double leDistanta = n.cachedDistanta;
+                    int loculete = getLoculete();
+                    if (intakePornit && loculete < 3) {
+                        n.intake.setPower(1);
+
+                        if (leDistanta < 20 && !ballBeingProcessed) {
+                            ballBeingProcessed = true;
+
+                            double servoPos = n.sortare.getPosition();
+
+                            if (Math.abs(servoPos - Pozitii.luarea1) < 0.1 && !slotOcupat[0]) {
+                                slotOcupat[0] = true;
+                                if (!slotOcupat[1]) {
+                                    n.sortare.setPosition(Pozitii.luarea2);
+                                } else if (!slotOcupat[2]) {
+                                    n.sortare.setPosition(Pozitii.luarea3);
+                                }
+                                n.kdf(150);
+
+                            } else if (Math.abs(servoPos - Pozitii.luarea2) < 0.1 && !slotOcupat[1]) {
+                                slotOcupat[1] = true;
+                                if (!slotOcupat[2]) {
+                                    n.sortare.setPosition(Pozitii.luarea3);
+                                } else if (!slotOcupat[0]) {
+                                    n.sortare.setPosition(Pozitii.luarea1);
+                                }
+                                n.kdf(150);
+
+                            } else if (Math.abs(servoPos - Pozitii.luarea3) < 0.1 && !slotOcupat[2]) {
+                                slotOcupat[2] = true;
+                                if (!slotOcupat[0]) {
+                                    n.sortare.setPosition(Pozitii.luarea1);
+                                } else if (!slotOcupat[1]) {
+                                    n.sortare.setPosition(Pozitii.luarea2);
+                                }
+                                n.kdf(150);
+                            }
+
+                        } else if (leDistanta >= 20 && ballBeingProcessed) {
+                            ballBeingProcessed = false;
+                        }
+                    } else if (!intakePornit) {
+                        n.intake.setPower(0);
+                        ballBeingProcessed = false;
+                    }
+
+                    // Shooter idle velocity
+                    if (!TragereInProgres) {
+                        if (loculete == 3) {
+                            n.shooter.setVelocity(SHOOTER_VEL);
+                            n.shooter2.setVelocity(SHOOTER_VEL);
+                        } else if (loculete > 0) {
+                            n.shooter.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                            n.shooter2.setVelocity(SHOOTER_VEL * IDLE_RATIO);
+                        } else {
+                            n.shooter.setVelocity(0);
+                            n.shooter2.setVelocity(0);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+
+    public void autonomousPathUpdate() {
+        switch (pathState) {
+            case 0:
+                follower.followPath(scorePreload);
+                pregatireShooter();
+
+                setPathState(1);
+                break;
+
+            case 1:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tragere1);
+                    setPathState(2);
+                }
+
+                break;
+
+            case 2:
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    actionTimer.resetTimer();
+                    setPathState(22);
+                }
+                break;
+            case 3:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat1);
+                    actionTimer.resetTimer();
+                    setPathState(4);
+                }
+                break;
+
+            case 4:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(23);
+                    } else {
+                        setPathState(5);
+                    }
+                }
+                break;
+
+            case 5:
+                intakePornit = false;
+                pregatireShooter();
+                n.sortare.setPosition(Pozitii.aruncare1);
+                follower.followPath(trasUnu);
+                setPathState(6);
+                break;
+
+            case 6:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras1);
+                    setPathState(7);
+                }
+                break;
+
+            case 7:
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(8);
+                }
+                break;
+
+            case 8:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare2,0.85,false);
+                setPathState(9);
+                break;
+
+            case 9:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat2);
+                    actionTimer.resetTimer();
+                    setPathState(10);
+                }
+                break;
+
+            case 10:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(26);
+                    } else {
+                        setPathState(11);
+                    }
+                }
+                break;
+
+            case 11:
+                intakePornit = false;
+                pregatireShooter();
+                n.sortare.setPosition(Pozitii.aruncare1);
+                follower.followPath(trasDoi);
+                setPathState(12);
+                break;
+
+            case 12:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras2);
+                    setPathState(13);
+                }
+                break;
+
+            case 13:
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(14);
+                }
+                break;
+
+            case 14:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(collectare3,0.85,false);
+                setPathState(15);
+                break;
+
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(16);
+                }
+                break;
+
+            case 16:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(21);
+                    } else {
+                        setPathState(17);
+                    }
+                }
+                break;
+
+            case 17:
+                intakePornit = false;
+                pregatireShooter();
+                n.sortare.setPosition(Pozitii.aruncare1);
+                follower.followPath(trasTrei);
+                setPathState(18);
+                break;
+
+            case 18:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(tras3);
+                    setPathState(19);
+                }
+                break;
+
+            case 19:
+                if (!TragereInProgres) {
+                    TragereInProgres = true;
+                    ShootingStare = 0;
+                }
+
+                TragereLaPupitru();
+
+                if (!TragereInProgres) {
+                    setPathState(20);
+                }
+                break;
+
+            case 20:
+                follower.followPath(returnarea);
+                setPathState(21);
+                break;
+
+            case 21:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(returnToBase);
+                    setPathState(-1);
+                }
+                break;
+
+            case 22:
+                if (actionTimer.getElapsedTimeSeconds() >= 0.5) {
+                    slotOcupat[0] = false;
+                    slotOcupat[1] = false;
+                    slotOcupat[2] = false;
+                    n.sortare.setPosition(Pozitii.luarea1);
+                    intakePornit = true;
+                    follower.followPath(collectare1,0.9,false);
+
+                    setPathState(3);
+                }
+                break;
+
+
+            case 23:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(Miss1);
+                setPathState(24);
+                break;
+
+            case 24:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat2);
+                    actionTimer.resetTimer();
+                    setPathState(25);
+                }
+                break;
+
+            case 25:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(26);
+                    } else {
+                        setPathState(11);
+                    }
+                }
+                break;
+
+            case 26:
+                slotOcupat[0] = false;
+                slotOcupat[1] = false;
+                slotOcupat[2] = false;
+                n.sortare.setPosition(Pozitii.luarea1);
+                intakePornit = true;
+                follower.followPath(Miss2);
+                setPathState(27);
+                break;
+
+            case 27:
+                if (!follower.isBusy()) {
+                    follower.holdPoint(aluat3);
+                    actionTimer.resetTimer();
+                    setPathState(28);
+                }
+                break;
+
+            case 28:
+                if (getLoculete() >= 3 || actionTimer.getElapsedTimeSeconds() >= 0.9) {
+                    intakePornit = false;
+                    if (getLoculete() == 0) {
+                        setPathState(21);
+                    } else {
+                        setPathState(17);
+                    }
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    public void setPathState(int pState) {
+        pathState = pState;
+        pathTimer.resetTimer();
+    }
+
+
+    private void track() {
+        n.tracks(follower, TARGET_X, TARGET_Y);
+    }
+
+    private void startTracking() {
+        TrackingThread = new Thread(() -> {
+            while (!stop) {
+                n.Nkdf(2000000);
+                n.tracks(follower, TARGET_X, TARGET_Y);
+            }
+            n.turelaD.setPosition(0.5);
+            n.turelaS.setPosition(0.5);
+        });
+        TrackingThread.start();
+    }
+
+
+
+    @Override
+    public void loop() {
+        if (opmodeTimer.getElapsedTimeSeconds() >= 29.5) {
+            n.shooter.setVelocity(0);
+            n.shooter2.setVelocity(0);
+            n.intake.setPower(0);
+            n.scula.setPower(0);
+            stop = true;
+            requestOpModeStop();
+            return;
+        }
+        follower.update();
+        telemetry.addData("slots",slotOcupat[2]);
+        telemetry.addData("slot1",slotOcupat[1]);
+        telemetry.addData("slot2",slotOcupat[2]);
+        telemetry.update();
+        autonomousPathUpdate();
+
+    }
+
+    @Override
+    public void init() {
+        n.initsisteme(hardwareMap);
+
+        pathTimer = new Timer();
+        actionTimer = new Timer();
+        opmodeTimer = new Timer();
+        opmodeTimer.resetTimer();
+
+        follower = Constants.createFollower(hardwareMap);
+
+        GoBildaPinpointDriver pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.recalibrateIMU();
+        ElapsedTime calibTimer = new ElapsedTime();
+        while (pinpoint.getDeviceStatus() != GoBildaPinpointDriver.DeviceStatus.READY
+                && calibTimer.milliseconds() < 2000) {
+            n.Nkdf(10000000);
+        }
+
+        buildPaths();
+        follower.setStartingPose(startPose);
+        follower.update();
+
+    }
+
+    @Override
+    public void init_loop() {
+
+    }
+
+    @Override
+    public void start() {
+        opmodeTimer.resetTimer();
+        setPathState(0);
+        TragereInProgres = false;
+        stop = false;
+        intakePornit = false;
+
+        slotOcupat[0] = true;
+        slotOcupat[1] = true;
+        slotOcupat[2] = true;
+
+        n.limelight.pipelineSwitch(2);
+        n.resetTurelaPID();
+
+        Intake();
+        IntakeThread.start();
+        startTracking();
+    }
+
+    @Override
+    public void stop() {
+        stop = true;
+
+        if (TrackingThread != null) {
+            TrackingThread.interrupt();
+        }
+        if (IntakeThread != null) {
+            IntakeThread.interrupt();
+        }
+
+        Pose currentPose = follower.getPose();
+        RobotPozitie.X = currentPose.getX();
+        RobotPozitie.Y = currentPose.getY();
+        RobotPozitie.heading = currentPose.getHeading();
+        RobotPozitie.idTag = idTag;
+
+        n.shooter.setVelocity(0);
+        n.shooter2.setVelocity(0);
+        n.intake.setPower(0);
+        n.scula.setPower(0);
+        n.turelaD.setPosition(0.5);
+        n.turelaS.setPosition(0.5);
+        n.bascula.setPosition(0.5807);
+    }
+}
